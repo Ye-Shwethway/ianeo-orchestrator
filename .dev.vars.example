@@ -1,3 +1,4 @@
 TELEGRAM_BOT_TOKEN="replace-locally"
 TELEGRAM_WEBHOOK_SECRET="replace-locally"
 TELEGRAM_OWNER_ID="replace-locally"
+FAQ_SERVICE_URL="https://replace-with-faq-worker.example"
