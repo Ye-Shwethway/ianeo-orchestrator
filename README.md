@@ -14,33 +14,37 @@ IANEO Orchestrator (Cloudflare Worker)
    |
    v
 Adapter / Integration Layer
+   +-- School of Nursing FAQ Bot (first read-only adapter)
    +-- Outline Manager
    +-- URL Uploader
-   +-- School of Nursing FAQ Bot
    +-- Observer Sandbox
    +-- GitHub
    +-- Cloudflare
    +-- future services
 ```
 
-Interactive runtime communication is direct HTTPS/API communication. GitHub Actions are never used as the interactive integration bus.
+Interactive runtime communication uses direct HTTPS/API calls. GitHub Actions are never used as the interactive integration bus, and IANEO does not control other bots by sending them Telegram commands.
 
 See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the full architecture contract.
 
 ## v0.1 foundation
 
-The bootstrap Worker currently provides:
+The current branch provides:
 
+- TypeScript Cloudflare Worker
 - Telegram webhook ingress
 - webhook-secret verification
 - owner-only access
 - `/start`
 - `/status`
-- minimal adapter interface and registry
+- normalized adapter interface and registry
 - targeted CI
 - Wrangler deployment workflow structure
+- first real adapter: School of Nursing FAQ Bot read-only health check
 
-No external service adapter is connected yet. The first adapter will be selected after read-only inspection of candidate service repositories.
+The FAQ adapter calls the FAQ Worker's existing `GET /health` endpoint through direct HTTPS. It requires only the configurable non-secret `FAQ_SERVICE_URL`; the FAQ repository itself was not modified.
+
+Observer Sandbox was also inspected. Its current Python/SQLite runtime exposes local CLI control but no existing remote HTTP surface, so Observer integration is deferred until a separately authorized minimal bridge is designed.
 
 ## Local setup
 
@@ -71,7 +75,7 @@ npm run dev
 
 Copy `.dev.vars.example` to `.dev.vars` for local development and provide local values. Never commit `.dev.vars`.
 
-## Runtime secrets
+## Runtime configuration
 
 Cloudflare Worker secrets:
 
@@ -79,7 +83,11 @@ Cloudflare Worker secrets:
 - `TELEGRAM_WEBHOOK_SECRET`
 - `TELEGRAM_OWNER_ID`
 
-Future integrations should use service-specific secrets rather than a shared master token.
+Non-secret service configuration:
+
+- `FAQ_SERVICE_URL` — base URL of the deployed School of Nursing FAQ Worker
+
+Future protected integrations should use service-specific secrets rather than a shared master token.
 
 ## Deployment secrets
 
@@ -102,6 +110,10 @@ development
 ```
 
 The initial Worker may use its `workers.dev` hostname. `ianeo.drthorne.uk` can be added later without changing the adapter architecture.
+
+## Current state
+
+PR #1 contains the v0.1 foundation and first FAQ health adapter. CI has produced successful type-check validation, but IANEO has **not yet been deployed or live-verified**. Production deployment should not be triggered until the required GitHub deployment secrets and Cloudflare runtime configuration are ready.
 
 ## Continuity
 
