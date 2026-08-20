@@ -1,8 +1,18 @@
+import { FaqAdapter } from "./adapters/faq";
 import type { Env } from "./config/env";
 import { AdapterRegistry } from "./core/adapter-registry";
+import type { ServiceAdapter } from "./core/types";
 import { handleTelegramWebhook } from "./telegram/handler";
 
-const registry = new AdapterRegistry();
+function buildRegistry(env: Env): AdapterRegistry {
+  const adapters: ServiceAdapter[] = [];
+
+  if (env.FAQ_SERVICE_URL) {
+    adapters.push(new FaqAdapter(env.FAQ_SERVICE_URL));
+  }
+
+  return new AdapterRegistry(adapters);
+}
 
 function json(data: unknown, status = 200): Response {
   return new Response(JSON.stringify(data), {
@@ -14,6 +24,7 @@ function json(data: unknown, status = 200): Response {
 export default {
   async fetch(request: Request, env: Env): Promise<Response> {
     const url = new URL(request.url);
+    const registry = buildRegistry(env);
 
     if (request.method === "GET" && url.pathname === "/health") {
       return json({
