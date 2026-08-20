@@ -104,7 +104,21 @@ PR #1 currently establishes:
 - Wrangler production deployment workflow structure
 - architecture documentation and public-repository secret hygiene
 
+Current verified package metadata used by the branch:
+
+- `@cloudflare/workers-types` `^5.20260818.1`
+- `typescript` `^7.0.2`
+- `wrangler` `^4.124.0`
+
 No existing bot repository has been modified.
+
+## Current validation state
+
+Package versions were checked against current npm metadata.
+
+A local install/type-check could not be completed in the current container because outbound DNS/network access is unavailable there. GitHub PR workflow runs have also not yet surfaced through the connector for the latest head commit.
+
+Therefore **CI/type-check is pending and must not be described as passed yet**.
 
 ## Current production state
 
@@ -158,4 +172,4 @@ Then propose the smallest useful first adapter for v0.1.1 and stop for approval 
 
 ## One-line handoff
 
-Current truth: PR #1 contains the concrete IANEO Cloudflare Worker command-center foundation using Telegram ingress and direct HTTPS adapters; production is not yet verified, no external adapter is connected yet, and the next integration step after foundation validation/merge is read-only comparison of candidate backend surfaces before choosing the first real adapter.
+Current truth: PR #1 contains the concrete IANEO Cloudflare Worker command-center foundation using Telegram ingress and direct HTTPS adapters; CI and production are not yet verified, no external adapter is connected yet, and the next integration step after foundation validation/merge is read-only comparison of candidate backend surfaces before choosing the first real adapter.
