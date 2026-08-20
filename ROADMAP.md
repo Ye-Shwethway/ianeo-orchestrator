@@ -1,103 +1,186 @@
 # IANEO Orchestrator — Roadmap
 
-> Canonical durable roadmap for `Ye-Shwethway/ianeo-orchestrator`.
->
-> This file MUST be reviewed and kept current after every meaningful project change. See `AGENTS.md`.
+Canonical durable roadmap for `Ye-Shwethway/ianeo-orchestrator`.
 
-## Project intent
+`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are mandatory living continuity documents. Every meaningful implementation, architecture, integration, deployment, operational-state, or roadmap change MUST update both in the same work cycle. A feature or infrastructure change is not complete while continuity documentation is stale.
 
-Build the IANEO Orchestrator as a small, maintainable orchestration layer that can coordinate IANEO workflows across connected services and development surfaces without burying the project in unnecessary infrastructure.
+## Project goal
 
-The repository is currently at its foundation/bootstrap stage. Detailed implementation architecture will be added as the first runnable slices are defined and verified.
+Build **IANEO Orchestrator** as a lightweight personal Telegram command-center bot providing one unified interface for controlling and accessing multiple existing bots and services.
 
-## Operating principles
+IANEO is a control plane, adapter/facade layer, capability router, and unified Telegram front door. It is **not** a monolithic replacement for the systems behind it.
 
-- Continuity-first development.
-- Repository truth over remembered chat context.
-- Small, runnable, reviewable implementation slices.
-- Minimal architecture first; expand only when a real requirement justifies it.
-- Explicit state, ownership, and failure handling for orchestrated work.
-- No hidden divergence between implementation and documentation.
+Target integrations include:
 
-## Mandatory continuity contract
+- Outline Manager Bot
+- URL Uploader Bot
+- School of Nursing FAQ Bot
+- Observer Sandbox
+- GitHub
+- Cloudflare
+- future personal bots/services
 
-The root-level files below are permanent project infrastructure:
+Existing systems remain independent repositories and deployments.
 
-- `AGENTS.md`
-- `ROADMAP.md`
-- `NEW_CHAT_BOOTSTRAP.md`
+## Locked architecture decisions
 
-### Required update rule
+### Runtime and hosting
 
-**Every meaningful implementation, architecture, integration, workflow, deployment, configuration, or project-state change must end with a reconciliation pass over both `ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md`.**
+- IANEO Orchestrator runs as a **TypeScript Cloudflare Worker**.
+- Telegram reaches the Worker through a webhook.
+- The Worker reaches target services primarily through direct HTTPS/API calls.
+- `workers.dev` is sufficient for bootstrap; `ianeo.drthorne.uk` is an optional later stable identity.
+- Service endpoints are configurable. Do not hard-code physical hosts or IP addresses.
 
-A slice is not considered complete while either continuity document is stale.
+### Runtime communication
 
-## Current phase
+Interactive path:
 
-### Phase 0 — Repository foundation
+`Telegram -> IANEO Worker -> service adapter -> direct HTTPS -> target service`
 
-Status: **IN PROGRESS**
+GitHub Actions MUST NOT be used for bot-to-bot runtime communication. Actions are limited to CI, validation, deployment, and Wrangler publishing.
 
-Completed:
+Telegram bot-to-bot messaging is not an integration bus. IANEO talks to the service/backend behind another bot.
 
-- [x] Create repository.
-- [x] Establish high-level repository governance in `AGENTS.md`.
-- [x] Establish `ROADMAP.md` as the durable planning source.
-- [x] Establish `NEW_CHAT_BOOTSTRAP.md` as the fresh-session handoff source.
-- [x] Make continuous maintenance of both continuity documents an explicit project rule.
+### Adapter model
 
-Pending:
+IANEO exposes a small normalized orchestration concept:
 
-- [ ] Define the first minimum-runnable orchestrator architecture.
-- [ ] Define the initial execution surface and deployment target.
-- [ ] Define configuration/secrets boundaries.
-- [ ] Define provider/connector adapters required by the first slice.
-- [ ] Define observability and failure-reporting minimums.
-- [ ] Implement and verify the first end-to-end orchestration path.
+- `getCapabilities()`
+- `health()`
+- `status()`
+- `execute(action, params)`
 
-## Planned phases
+Individual adapters translate that contract into the real interface of each backend. Backends do not need to share an identical REST API.
 
-### Phase 1 — Minimum runnable orchestrator
+### Existing service modification policy
 
-Goal: one complete, understandable orchestration path from request/input to delegated execution to returned result.
+Inspect first for existing HTTP endpoints, APIs, RPC/service interfaces, queues, callable backend functions, or admin routes. Prefer zero-change integration where possible. If no callable external surface exists, add only the smallest bridge necessary. Avoid architectural rewrites of existing bots.
 
-Scope will be finalized before implementation. Prefer the smallest architecture that proves the orchestration contract.
+### Authentication and secrets
 
-### Phase 2 — Reliability and state
+Repository is public.
 
-Potential concerns, only after Phase 1 proves the need:
+GitHub Actions Secrets are deployment-only, e.g.:
 
-- durable job/state handling
-- retry/idempotency rules
-- execution history
-- structured error reporting
-- controlled concurrency
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
 
-### Phase 3 — Expanded integrations
+Cloudflare Worker secrets hold runtime credentials, e.g.:
 
-Add integrations only when they support concrete workflows. Avoid building a generic integration framework ahead of requirements.
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- `TELEGRAM_OWNER_ID`
+- service-specific bearer tokens
 
-### Phase 4 — Operational refinement
+Use separate credentials per integration where practical. Do not create one global master service token.
 
-Possible later work:
+### Telegram UX and safety
 
-- richer monitoring
-- admin/operator controls
-- scheduling or event-driven execution where justified
-- deployment hardening
-- cost/runtime optimization
+Start deterministic; AI intent routing is deferred.
 
-## Decision log
+Initial commands:
 
-### 2026-08-21 — Continuity docs are mandatory
+- `/start`
+- `/status`
 
-Decision: `ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are permanent root-level canonical files and must be kept synchronized with repository state after every meaningful development slice.
+Future command-center sections may include Outline Manager, URL Uploader, FAQ Bot, Observer Sandbox, GitHub, Cloudflare, and System.
 
-Reason: new chats/sessions must be able to resume from repository truth without relying on fragile conversational memory.
+Action classes:
 
-## Next authorized planning target
+1. Read — status, health, logs, stats, list
+2. Normal Write — create/submit/update supported content
+3. Sensitive Control — deploy, restart, pause, resume, delete, destructive administration
 
-Define the **first minimum-runnable orchestrator slice** and document its architecture before code implementation.
+Sensitive controls require confirmation when implemented.
 
-Do not inflate the first slice into a broad platform. It should prove one real orchestration flow end to end.
+## Resource discipline
+
+This is a personal-use system. Avoid Kubernetes, service meshes, generic event buses, unnecessary databases, unnecessary Durable Objects, unnecessary queues, premature AI-agent architecture, and large plugin frameworks.
+
+Baseline stack:
+
+`Cloudflare Worker + Telegram + adapters + HTTPS + secrets`
+
+## Version roadmap
+
+### v0.1 — Deployable Orchestrator foundation
+
+Status: **IN PROGRESS on `bootstrap/v0.1-foundation`**
+
+Foundation scope:
+
+- [x] repository continuity governance
+- [x] explicit architecture and runtime invariants
+- [x] minimal TypeScript Cloudflare Worker structure
+- [x] Telegram webhook receiver foundation
+- [x] owner-only access foundation
+- [x] `/start`
+- [x] `/status`
+- [x] minimal adapter interface and registry, with no external service forced yet
+- [x] targeted CI structure
+- [x] Wrangler production deployment workflow structure
+- [x] public-repository secret hygiene
+- [ ] PR review/merge to `main`
+- [ ] configure GitHub deployment secrets
+- [ ] configure Cloudflare Worker runtime secrets
+- [ ] first production Wrangler deployment
+- [ ] register Telegram webhook against the production Worker
+- [ ] verify `/start` and `/status` live
+
+### v0.1.1 — First adapter selection and minimum real integration
+
+Status: **PROPOSED — not yet implemented**
+
+Before choosing an adapter, inspect two contrasting systems without modifying them, preferably:
+
+- Observer Sandbox
+- School of Nursing FAQ Bot
+
+For each inspect hosting, runtime, API surface, Telegram handler structure, service/business separation, authentication, database dependency, health/admin endpoints, and minimum bridge required.
+
+Then choose the smallest useful first adapter and implement one end-to-end direct HTTPS integration.
+
+### Later slices
+
+- additional adapters one at a time
+- richer inline-button command-center UX
+- service status aggregation
+- normal write actions
+- confirmed sensitive controls
+- optional stable `ianeo.drthorne.uk` route
+- optional natural-language routing only after deterministic control paths are reliable
+
+## Known external context
+
+- Outline Manager: VPS-hosted
+- URL Uploader: VPS-hosted
+- School of Nursing FAQ Bot: separate Cloudflare Worker using Wrangler, Modules format, D1, and scheduled functionality
+- Observer Sandbox: separate project
+- IANEO Orchestrator: separate Cloudflare Worker
+- `drthorne.uk`: managed through Cloudflare
+- Cloudflare Workers plan: Free
+
+The old FAQ test Worker and test D1 are removed; IANEO must not be combined with the FAQ production Worker.
+
+## Development process
+
+Preferred cycle:
+
+`inspect -> document decision -> implement minimum runnable slice -> validate -> update continuity docs -> PR -> merge -> verify deployment -> reconcile docs again if runtime state changed`
+
+Avoid giant foundation PRs and unnecessary abstraction.
+
+## Current implementation state
+
+The repository began with continuity docs only. The `bootstrap/v0.1-foundation` branch is replacing the generic bootstrap with the concrete IANEO architecture and adding the minimal Worker/Telegram/adapter/CI/deployment foundation.
+
+No existing bot repository has been modified and no external service integration has been implemented.
+
+## Current production state
+
+**Not deployed.** No IANEO production Worker or Telegram webhook has been verified yet.
+
+## Next proposed slice
+
+After the foundation PR is reviewed/merged and the Worker is deployable, inspect Observer Sandbox and the School of Nursing FAQ Bot read-only, compare their integration surfaces, and select the smallest useful first adapter for **v0.1.1**.
