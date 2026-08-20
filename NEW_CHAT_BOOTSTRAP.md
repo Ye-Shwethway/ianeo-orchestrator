@@ -87,9 +87,11 @@ Never commit real secrets, sensitive IDs, passwords, credentials, private `.env`
 
 ## Latest completed checkpoint
 
+Open PR: **#1 — Bootstrap IANEO Orchestrator v0.1 foundation**
+
 Branch: `bootstrap/v0.1-foundation`
 
-Foundation work currently establishes:
+PR #1 currently establishes:
 
 - concrete IANEO architecture/governance
 - TypeScript Cloudflare Worker bootstrap
@@ -108,7 +110,7 @@ No existing bot repository has been modified.
 
 IANEO is **not yet deployed or runtime-verified**.
 
-Still required after merge/setup:
+Still required after PR validation/merge and setup:
 
 - configure GitHub deployment secrets
 - configure Cloudflare Worker runtime secrets
@@ -139,14 +141,16 @@ The adapter foundation exists, but the first real external adapter has intention
 
 ## Known issues / unverified state
 
+- PR #1 validation/review is still pending.
+- PR #1 is not yet merged to `main`.
 - Cloudflare project/secrets have not yet been configured for IANEO.
 - Telegram webhook has not yet been registered.
 - First external adapter has not yet been chosen.
-- CI/deploy workflow structure must be exercised after PR/merge and secret setup.
+- CI/deploy workflow structure still needs real execution/verification.
 
 ## Next proposed slice
 
-After foundation review/merge, perform **read-only integration reconnaissance** on two contrasting systems, preferably Observer Sandbox and School of Nursing FAQ Bot.
+After PR #1 validation/merge and foundation deployability, perform **read-only integration reconnaissance** on two contrasting systems, preferably Observer Sandbox and School of Nursing FAQ Bot.
 
 Inspect hosting, runtime, API surface, Telegram handlers, business/service separation, authentication, database dependency, health/admin endpoints, and minimum bridge required. Do not modify those repositories during reconnaissance unless explicitly authorized.
 
@@ -154,4 +158,4 @@ Then propose the smallest useful first adapter for v0.1.1 and stop for approval 
 
 ## One-line handoff
 
-Current truth: IANEO Orchestrator is a separate Cloudflare Worker command-center foundation using Telegram ingress and direct HTTPS adapters; the foundation branch is being bootstrapped, production is not yet verified, and the next integration step is read-only comparison of candidate backend surfaces before choosing the first real adapter.
+Current truth: PR #1 contains the concrete IANEO Cloudflare Worker command-center foundation using Telegram ingress and direct HTTPS adapters; production is not yet verified, no external adapter is connected yet, and the next integration step after foundation validation/merge is read-only comparison of candidate backend surfaces before choosing the first real adapter.
