@@ -4,13 +4,11 @@ Fresh-session continuity checkpoint for `Ye-Shwethway/ianeo-orchestrator`.
 
 ## Repository identity
 
-IANEO Orchestrator is a lightweight personal Telegram command-center bot hosted as a **separate TypeScript Cloudflare Worker**. It provides one unified control surface over independent bots/services through service-specific adapters.
+IANEO Orchestrator is a lightweight personal Telegram command-center bot hosted as a **separate TypeScript Cloudflare Worker**. It provides one unified control surface over independent bots/services through service-specific adapters. It does not merge or replace existing bot repositories.
 
-It does not merge or replace existing bot repositories.
+## Mandatory reconciliation order
 
-## Mandatory source-of-truth order
-
-For every new development chat, reconcile in this order:
+Use this source-of-truth order:
 
 1. verified live/runtime evidence
 2. current repository implementation
@@ -25,9 +23,7 @@ Read `AGENTS.md` first, then this file, then `ROADMAP.md`, then task-relevant so
 
 `ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are mandatory living continuity documents. Every meaningful implementation, architecture, integration, deployment, operational-state, or roadmap change MUST update both in the same work cycle before the work is considered complete.
 
-A feature or infrastructure change is not complete if repository continuity documentation is stale.
-
-Before ending a substantial development session or merging a meaningful implementation PR, reconcile both files against the actual repository and verified runtime state.
+A feature or infrastructure change is not complete if repository continuity documentation is stale. Before ending a substantial development session or merging a meaningful implementation PR, reconcile both files against actual repository and verified runtime state.
 
 ## Current architecture
 
@@ -39,105 +35,106 @@ Deployment:
 
 `GitHub -> GitHub Actions -> Wrangler -> Cloudflare Worker`
 
-GitHub Actions are CI/deployment only, never the interactive bot-to-bot runtime. IANEO must not send Telegram commands to another bot and scrape the reply; it calls the backend/service behind that bot.
+GitHub Actions are CI/deployment only, never interactive runtime. IANEO does not control another Telegram bot by messaging it and scraping replies; it calls the backend/service behind that bot.
 
 ## Adapter contract
-
-The core contract is deliberately small:
 
 - `getCapabilities()`
 - `health()`
 - `status()`
 - `execute(action, params)`
 
-Each adapter translates this to the target system's actual interface. No common backend REST shape is imposed.
+Adapters translate this small common contract to each target's actual interface. No identical backend REST design is imposed.
 
 ## Current branch / PR
 
 - Branch: `bootstrap/v0.1-foundation`
-- Open PR: **#1 — Bootstrap IANEO Orchestrator v0.1 foundation**
+- PR: **#1 — Bootstrap IANEO Orchestrator v0.1 foundation**
 - Base: `main`
-
-PR #1 now contains the minimum Worker/Telegram/adapter/CI/deployment foundation **plus the first real read-only service adapter**.
+- State: open, mergeable; final docs-sync head still needs CI confirmation before merge
 
 ## Current implementation checkpoint
 
-Implemented on the branch:
+PR #1 contains:
 
 - TypeScript Cloudflare Worker
-- `GET /health` for IANEO
+- IANEO `GET /health`
 - Telegram `POST /telegram/webhook`
 - Telegram webhook-secret verification
 - owner-only access via `TELEGRAM_OWNER_ID`
 - `/start`
 - `/status`
-- normalized adapter interface/registry
+- normalized adapter contract/registry
 - targeted CI workflow
 - Wrangler production-deployment workflow structure
 - public-repository secret hygiene
 - configurable `FAQ_SERVICE_URL`
-- `FaqAdapter` using direct HTTPS to the FAQ Worker's existing `GET /health`
-- `/status` health aggregation for configured adapters
+- `FaqAdapter` using direct HTTPS to FAQ's existing `GET /health`
+- `/status` aggregation of configured adapter health
 
 No existing bot repository has been modified.
 
 ## First-adapter reconnaissance result
 
-### School of Nursing FAQ Bot — selected first
+### School of Nursing FAQ Bot — selected
 
-Repository inspection confirmed it is already an HTTP-native TypeScript Cloudflare Worker. Its production code exposes:
+Inspection confirmed an HTTP-native TypeScript Cloudflare Worker with:
 
 - `GET /health`
 - `POST /telegram/webhook`
 
-The health endpoint returns `ok`, service identity, and environment. Therefore IANEO can perform a useful read-only health integration with **zero FAQ repository changes**.
+The health endpoint returns `ok`, service identity, and environment. This supports a useful zero-change read-only adapter.
 
-Current FAQ adapter capability is intentionally only `health`. The Telegram webhook is not treated as a service-control API.
-
-`FAQ_SERVICE_URL` is a configurable non-secret endpoint binding. The real production URL has not yet been configured/verified in IANEO.
+Current FAQ capability is intentionally only `health`. The Telegram webhook is not a service-control API. `FAQ_SERVICE_URL` is a configurable non-secret endpoint binding; its real production value has not yet been configured or live-verified in IANEO.
 
 ### Observer Sandbox — deferred
 
-Repository inspection confirmed a Python 3.11+ package with CLI entry point `sandboxctl = observer_sandbox.cli:main`. Status, autonomy, and Creator control paths operate through Python code and the local SQLite-backed runtime. The project currently declares no HTTP server framework dependency, and inspection did not reveal an existing remote HTTP control surface.
+Inspection confirmed:
 
-Therefore remote IANEO control of Observer would currently require a **small authenticated bridge** on the Observer host (or another explicit remote callable surface). Do not modify Observer Sandbox for this without explicit authorization.
+- Python 3.11+ package
+- CLI entry point `sandboxctl = observer_sandbox.cli:main`
+- status/autonomy/Creator control paths use local Python/SQLite runtime code
+- no declared HTTP server framework dependency
+- no existing remote HTTP control surface found during repository inspection
 
-This comparison validates the adapter architecture: FAQ needs zero-change HTTP translation; Observer can later use its own tiny bridge without refactoring either system into a shared backend design.
+Remote IANEO integration would therefore require a small authenticated bridge or another explicit remote callable surface. Do not modify Observer Sandbox for this without explicit authorization.
 
-## Secrets and configuration boundary
+The comparison validates the adapter architecture: FAQ uses zero-change HTTP integration while Observer can later use its own minimal bridge without forcing either backend into a shared architecture.
 
-Public repository: never commit real credentials, secret IDs, passwords, tokens, private `.env` content, or sensitive logs.
+## Secrets/config boundary
 
-GitHub Actions Secrets are deployment-only, e.g. `CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`.
+Public repository: never commit real tokens, sensitive IDs, passwords, credentials, private `.env` content, or sensitive logs.
 
-Cloudflare Worker secrets hold runtime secrets such as `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, `TELEGRAM_OWNER_ID`, and future service-specific bearer tokens.
+- GitHub Actions Secrets: deployment credentials such as `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
+- Cloudflare Worker secrets: Telegram/runtime credentials and future service-specific bearer tokens.
+- Non-secret service endpoints such as `FAQ_SERVICE_URL`: plain Worker vars/environment bindings.
 
-Non-secret service URLs such as `FAQ_SERVICE_URL` can be plain Worker vars/environment bindings.
+Prefer separate credentials per integration; no global master token.
 
-## Current validation state
+## Validation state
 
-Current package metadata on the branch:
+Current toolchain:
 
 - `@cloudflare/workers-types` `^5.20260818.1`
 - `typescript` `^7.0.2`
 - `wrangler` `^4.124.0`
 
-Package versions were checked against current npm metadata. A full dependency install/type-check has not yet been verified in the current environment, and a GitHub PR workflow run has not yet been confirmed through the connector.
+GitHub Actions **CI run #13 completed successfully** on the implementation head. The workflow reached success after dependency setup and TypeScript type-check validation.
 
-**CI/type-check is pending. Do not describe it as passed.**
+The continuity-doc sync commits created after that success are newer than run #13, so the **final PR head must still be confirmed green before merge**.
 
-## Current production state
+## Production state
 
 IANEO is **not deployed or runtime-verified yet**.
 
 Still required:
 
-- validate PR #1 CI/type-check
-- merge PR #1 when clean
+- confirm final PR head CI
+- merge PR #1
 - configure GitHub deployment secrets
-- configure IANEO Worker Telegram secrets
-- configure the verified production `FAQ_SERVICE_URL`
-- deploy with Wrangler
+- configure IANEO Worker Telegram/runtime secrets
+- configure verified production `FAQ_SERVICE_URL`
+- deploy via Wrangler
 - register Telegram webhook
 - verify owner-only `/start` and `/status`
 - verify FAQ health through IANEO direct HTTPS
@@ -147,8 +144,8 @@ Do not claim production success before live evidence exists.
 
 ## Active integrations
 
-- School of Nursing FAQ Bot: **implemented in repository as read-only health adapter; not yet live-verified**
-- Observer Sandbox: **reconnaissance complete; remote bridge required; no modification authorized/implemented**
+- School of Nursing FAQ Bot: **read-only health adapter implemented; not live-verified**
+- Observer Sandbox: **recon complete; remote bridge required; no target change implemented**
 - Outline Manager: pending
 - URL Uploader: pending
 - GitHub: pending
@@ -156,7 +153,7 @@ Do not claim production success before live evidence exists.
 
 ## Important invariants
 
-- existing services remain independent
+- existing services stay independent
 - direct HTTPS/API runtime integration
 - no GitHub Actions in interactive path
 - no Telegram bot-to-bot integration bus
@@ -171,16 +168,16 @@ Do not claim production success before live evidence exists.
 
 Finish **v0.1 deployment verification** before adding another integration:
 
-1. get PR #1 validation green;
-2. merge to `main`;
-3. configure Cloudflare/GitHub values without committing secrets;
-4. deploy the IANEO Worker;
+1. confirm final PR head CI green;
+2. merge PR #1;
+3. configure deployment/runtime values without committing secrets;
+4. deploy the separate IANEO Worker;
 5. register Telegram webhook;
 6. verify `/start`, `/status`, and FAQ health end to end;
 7. update both continuity docs from verified runtime evidence.
 
-After v0.1 is live, decide between a genuinely useful richer FAQ backend surface or a separately authorized minimum Observer HTTP bridge. Do not expand the registry just for breadth.
+After v0.1 is live, choose either a genuinely useful richer FAQ backend surface or a separately authorized minimum Observer HTTP bridge. Do not expand the registry merely for breadth.
 
 ## One-line handoff
 
-Current truth: PR #1 contains a separate Cloudflare Worker Telegram command-center foundation and the first real zero-change FAQ health adapter; Observer reconnaissance shows it needs a tiny remote bridge; CI and production remain unverified; the next task is to get v0.1 validated, deployed, and live-verified before adding more integrations.
+Current truth: PR #1 contains the separate Cloudflare Worker Telegram command-center foundation plus the first zero-change FAQ health adapter; Observer needs a small remote bridge; implementation CI has passed, final docs-sync head still needs CI confirmation, and production remains unverified.
