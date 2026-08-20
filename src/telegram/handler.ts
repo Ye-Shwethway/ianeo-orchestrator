@@ -11,6 +11,25 @@ function ok(): Response {
   return new Response("OK", { status: 200 });
 }
 
+async function adapterStatusLines(registry: AdapterRegistry): Promise<string[]> {
+  const ids = registry.listIds();
+  if (ids.length === 0) return ["Adapters: none configured"];
+
+  return Promise.all(
+    ids.map(async (id) => {
+      const adapter = registry.get(id);
+      if (!adapter) return `🔴 ${id}: unavailable`;
+
+      try {
+        const status = await adapter.status();
+        return `${status.ok ? "🟢" : "🔴"} ${id}: ${status.summary}`;
+      } catch {
+        return `🔴 ${id}: status check failed`;
+      }
+    }),
+  );
+}
+
 export async function handleTelegramWebhook(
   request: Request,
   env: Env,
@@ -50,17 +69,14 @@ export async function handleTelegramWebhook(
         "Personal command center online.",
         "",
         "Available now:",
-        "• /status — Orchestrator status",
-        "",
-        "Service integrations will appear here as adapters are added.",
+        "• /status — Orchestrator and service health",
       ].join("\n"),
     );
     return ok();
   }
 
   if (command === "/status") {
-    const adapters = registry.listIds();
-    const adapterSummary = adapters.length > 0 ? adapters.join(", ") : "none yet";
+    const serviceLines = await adapterStatusLines(registry);
 
     await sendTelegramMessage(
       env.TELEGRAM_BOT_TOKEN,
@@ -68,8 +84,9 @@ export async function handleTelegramWebhook(
       [
         "🟢 IANEO Orchestrator",
         "Runtime: Cloudflare Worker",
-        `Adapters: ${adapterSummary}`,
         "Mode: owner-only bootstrap",
+        "",
+        ...serviceLines,
       ].join("\n"),
     );
     return ok();
