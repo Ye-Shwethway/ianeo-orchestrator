@@ -106,7 +106,7 @@ Baseline stack:
 
 ### v0.1 — Deployable Orchestrator foundation
 
-Status: **IN PROGRESS on `bootstrap/v0.1-foundation`**
+Status: **PR #1 OPEN — `bootstrap/v0.1-foundation` -> `main`**
 
 Foundation scope:
 
@@ -121,7 +121,9 @@ Foundation scope:
 - [x] targeted CI structure
 - [x] Wrangler production deployment workflow structure
 - [x] public-repository secret hygiene
-- [ ] PR review/merge to `main`
+- [x] foundation PR opened as PR #1
+- [ ] PR #1 validation/review
+- [ ] merge PR #1 to `main`
 - [ ] configure GitHub deployment secrets
 - [ ] configure Cloudflare Worker runtime secrets
 - [ ] first production Wrangler deployment
@@ -173,7 +175,7 @@ Avoid giant foundation PRs and unnecessary abstraction.
 
 ## Current implementation state
 
-The repository began with continuity docs only. The `bootstrap/v0.1-foundation` branch is replacing the generic bootstrap with the concrete IANEO architecture and adding the minimal Worker/Telegram/adapter/CI/deployment foundation.
+The repository began with continuity docs only. PR #1 now contains the concrete IANEO architecture plus the minimal Worker/Telegram/adapter/CI/deployment foundation.
 
 No existing bot repository has been modified and no external service integration has been implemented.
 
@@ -183,4 +185,4 @@ No existing bot repository has been modified and no external service integration
 
 ## Next proposed slice
 
-After the foundation PR is reviewed/merged and the Worker is deployable, inspect Observer Sandbox and the School of Nursing FAQ Bot read-only, compare their integration surfaces, and select the smallest useful first adapter for **v0.1.1**.
+After PR #1 is validated/merged and the Worker foundation is deployable, inspect Observer Sandbox and the School of Nursing FAQ Bot read-only, compare their integration surfaces, and select the smallest useful first adapter for **v0.1.1**.
