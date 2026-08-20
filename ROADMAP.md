@@ -122,6 +122,7 @@ Foundation scope:
 - [x] Wrangler production deployment workflow structure
 - [x] public-repository secret hygiene
 - [x] foundation PR opened as PR #1
+- [x] bootstrap package versions checked against current npm metadata
 - [ ] PR #1 validation/review
 - [ ] merge PR #1 to `main`
 - [ ] configure GitHub deployment secrets
@@ -129,6 +130,12 @@ Foundation scope:
 - [ ] first production Wrangler deployment
 - [ ] register Telegram webhook against the production Worker
 - [ ] verify `/start` and `/status` live
+
+Current bootstrap toolchain pins:
+
+- `@cloudflare/workers-types` `^5.20260818.1`
+- `typescript` `^7.0.2`
+- `wrangler` `^4.124.0`
 
 ### v0.1.1 — First adapter selection and minimum real integration
 
@@ -178,6 +185,10 @@ Avoid giant foundation PRs and unnecessary abstraction.
 The repository began with continuity docs only. PR #1 now contains the concrete IANEO architecture plus the minimal Worker/Telegram/adapter/CI/deployment foundation.
 
 No existing bot repository has been modified and no external service integration has been implemented.
+
+## Current validation state
+
+Package versions have been checked against current npm metadata. A local dependency install/type-check could not be executed in the current container because outbound DNS access to GitHub/npm is unavailable, and GitHub PR workflow runs have not yet surfaced through the connector. Therefore CI remains **pending/unverified**, not passed.
 
 ## Current production state
 
