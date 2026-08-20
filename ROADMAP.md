@@ -47,12 +47,12 @@ Inspect callable surfaces first. Prefer zero-change integration. If none exists,
 
 ### Secrets
 
-Public repository. Never commit real credentials or sensitive logs.
+The repository is public. Never commit real credentials or sensitive logs.
 
 - GitHub Actions Secrets: deployment credentials only.
 - Cloudflare Worker secrets: Telegram/runtime credentials and future service-specific bearer tokens.
-- Non-secret endpoint values such as `FAQ_SERVICE_URL` may be Worker vars/environment bindings.
-- Prefer separate credentials per service; no global master token.
+- Non-secret endpoint values such as `FAQ_SERVICE_URL`: Worker vars/environment bindings.
+- Prefer separate credentials per service; never one global master token.
 
 ### UX and safety
 
@@ -75,7 +75,7 @@ Baseline:
 
 ## v0.1 — Deployable foundation + first real read path
 
-Status: **PR #1 OPEN — validated on branch, awaiting merge/deployment setup**
+Status: **PR #1 OPEN — implementation validated; merge intentionally waits for deployment configuration readiness**
 
 Completed:
 
@@ -96,13 +96,13 @@ Completed:
 - [x] direct HTTPS FAQ `GET /health` integration
 - [x] `/status` aggregates configured adapter health
 - [x] `FAQ_SERVICE_URL` configurable as a non-secret binding
-- [x] GitHub Actions CI run #13 completed successfully on the implementation head (dependency install + TypeScript type-check workflow)
+- [x] successful GitHub Actions dependency-install + TypeScript type-check validation observed on PR #1
+- [x] README and architecture docs reconciled with the first-adapter decision
 
 Still pending:
 
-- [ ] final docs-only head CI confirmation
-- [ ] merge PR #1 to `main`
-- [ ] configure GitHub deployment secrets
+- [ ] ensure required GitHub deployment secrets are configured before allowing a main-branch deployment
+- [ ] merge PR #1 to `main` when deployment configuration is ready and required checks are green
 - [ ] configure IANEO Worker runtime secrets
 - [ ] configure verified production `FAQ_SERVICE_URL`
 - [ ] first production Wrangler deployment
@@ -146,19 +146,21 @@ This contrast validates the adapter model: FAQ is zero-change HTTP integration; 
 
 ## Validation state
 
-GitHub Actions CI run #13 for the implementation head completed successfully. This is verified repository evidence that the CI workflow reached a successful conclusion. The latest docs-sync commits must also finish cleanly before merge.
+PR #1 has produced successful GitHub Actions CI runs that installed dependencies and completed TypeScript type-checking. This verifies the implementation can pass the repository's targeted CI. Required checks should still be confirmed green at the actual merge point.
 
 ## Production state
 
-**Not deployed.** No IANEO production Worker, Telegram webhook, or live FAQ-through-IANEO path has been verified yet. Do not describe repository success as production success.
+**Not deployed.** No IANEO production Worker, Telegram webhook, or live FAQ-through-IANEO path has been verified yet.
+
+The production workflow is designed to run from `main`. Do not intentionally merge merely to discover that deployment credentials are missing; confirm deployment configuration readiness first.
 
 ## Next planned slice
 
-Finish v0.1 deployment verification before adding another integration:
+Finish v0.1 deployment readiness and live verification before adding another integration:
 
-1. confirm the final PR head CI is green;
-2. merge PR #1 to `main`;
-3. configure deployment/runtime values without committing secrets;
+1. confirm/configure GitHub deployment secrets required by the Wrangler workflow;
+2. merge PR #1 with required checks green;
+3. configure IANEO Worker runtime secrets and verified `FAQ_SERVICE_URL`;
 4. deploy the separate IANEO Worker;
 5. register Telegram webhook;
 6. verify owner-only `/start` and `/status`;
