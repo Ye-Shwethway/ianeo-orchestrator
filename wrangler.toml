@@ -1,0 +1,8 @@
+name = "ianeo-orchestrator"
+main = "src/index.ts"
+compatibility_date = "2026-08-20"
+workers_dev = true
+
+[observability.logs]
+enabled = true
+head_sampling_rate = 1
