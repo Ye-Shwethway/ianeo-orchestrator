@@ -51,7 +51,7 @@ Adapters translate this small common contract to each target's actual interface.
 - Branch: `bootstrap/v0.1-foundation`
 - PR: **#1 — Bootstrap IANEO Orchestrator v0.1 foundation**
 - Base: `main`
-- State: open, mergeable; final docs-sync head still needs CI confirmation before merge
+- State: open; implementation CI has produced successful runs; merge is intentionally deferred until deployment configuration is ready
 
 ## Current implementation checkpoint
 
@@ -71,6 +71,7 @@ PR #1 contains:
 - configurable `FAQ_SERVICE_URL`
 - `FaqAdapter` using direct HTTPS to FAQ's existing `GET /health`
 - `/status` aggregation of configured adapter health
+- README and architecture docs reconciled with the first-adapter decision
 
 No existing bot repository has been modified.
 
@@ -97,7 +98,7 @@ Inspection confirmed:
 - no declared HTTP server framework dependency
 - no existing remote HTTP control surface found during repository inspection
 
-Remote IANEO integration would therefore require a small authenticated bridge or another explicit remote callable surface. Do not modify Observer Sandbox for this without explicit authorization.
+Remote IANEO integration therefore requires a small authenticated bridge or another explicit remote callable surface. Do not modify Observer Sandbox for this without explicit authorization.
 
 The comparison validates the adapter architecture: FAQ uses zero-change HTTP integration while Observer can later use its own minimal bridge without forcing either backend into a shared architecture.
 
@@ -119,19 +120,18 @@ Current toolchain:
 - `typescript` `^7.0.2`
 - `wrangler` `^4.124.0`
 
-GitHub Actions **CI run #13 completed successfully** on the implementation head. The workflow reached success after dependency setup and TypeScript type-check validation.
-
-The continuity-doc sync commits created after that success are newer than run #13, so the **final PR head must still be confirmed green before merge**.
+PR #1 has produced successful GitHub Actions CI runs that installed dependencies and completed TypeScript type-checking. This verifies the branch can pass the targeted CI workflow. Confirm required checks are green at the actual merge point, but do not treat documentation-only head changes as a reason to claim the implementation is unvalidated.
 
 ## Production state
 
 IANEO is **not deployed or runtime-verified yet**.
 
+The production workflow is designed to run after changes reach `main`. Required GitHub deployment credentials therefore need to be configured before intentionally merging this bootstrap PR.
+
 Still required:
 
-- confirm final PR head CI
-- merge PR #1
-- configure GitHub deployment secrets
+- confirm/configure GitHub deployment secrets
+- merge PR #1 with required checks green
 - configure IANEO Worker Telegram/runtime secrets
 - configure verified production `FAQ_SERVICE_URL`
 - deploy via Wrangler
@@ -166,11 +166,11 @@ Do not claim production success before live evidence exists.
 
 ## Next planned slice
 
-Finish **v0.1 deployment verification** before adding another integration:
+Finish **v0.1 deployment readiness and live verification** before adding another integration:
 
-1. confirm final PR head CI green;
-2. merge PR #1;
-3. configure deployment/runtime values without committing secrets;
+1. confirm/configure GitHub deployment secrets used by the Wrangler workflow;
+2. merge PR #1 with required checks green;
+3. configure IANEO Worker runtime secrets and verified `FAQ_SERVICE_URL`;
 4. deploy the separate IANEO Worker;
 5. register Telegram webhook;
 6. verify `/start`, `/status`, and FAQ health end to end;
@@ -180,4 +180,4 @@ After v0.1 is live, choose either a genuinely useful richer FAQ backend surface 
 
 ## One-line handoff
 
-Current truth: PR #1 contains the separate Cloudflare Worker Telegram command-center foundation plus the first zero-change FAQ health adapter; Observer needs a small remote bridge; implementation CI has passed, final docs-sync head still needs CI confirmation, and production remains unverified.
+Current truth: PR #1 contains the separate Cloudflare Worker Telegram command-center foundation plus the first zero-change FAQ health adapter; Observer needs a small remote bridge; targeted CI has succeeded; merge/deployment now waits on deployment configuration readiness, and production remains unverified.
