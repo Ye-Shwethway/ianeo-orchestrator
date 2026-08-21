@@ -55,7 +55,7 @@ Adapters translate this small common contract to each target's actual interface.
 - Branch: `bootstrap/v0.1-foundation`
 - PR: **#1 — Bootstrap IANEO Orchestrator v0.1 foundation**
 - Base: `main`
-- State: open and mergeable; user reports GitHub deployment credentials configured; final deployment-config update and CI verification are in progress
+- State: open; deployment configuration is ready; final head CI must be green immediately before merge
 
 ## Current implementation checkpoint
 
@@ -152,7 +152,7 @@ Current toolchain:
 - `typescript` `^7.0.2`
 - `wrangler` `^4.124.0`
 
-PR #1 previously produced successful GitHub Actions dependency-install and TypeScript type-check runs. The latest deployment-readiness update changes Wrangler configuration and documentation; confirm the final head CI result before merge.
+GitHub Actions CI run #24 passed on head `da2102f66b2002a6f13397272914d80b6ac877b3`, including dependency installation and TypeScript type-check. Continuity-only commits were made afterward to record merge readiness, so the actual latest head must receive one final green CI result before merge.
 
 ## Production state
 
@@ -160,7 +160,7 @@ IANEO is **not deployed or runtime-verified yet**.
 
 Still required:
 
-- confirm final PR-head CI green
+- confirm latest PR-head CI green
 - merge PR #1 to `main`
 - observe first production Wrangler deployment/create `ianeo-orchestrator`
 - configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` as Worker secrets
@@ -199,7 +199,7 @@ Do not claim production success before live evidence exists.
 
 Finish **v0.1 production deployment and live verification** before adding another integration:
 
-1. confirm final PR-head targeted CI is green;
+1. confirm latest PR-head targeted CI is green;
 2. merge PR #1 to `main`;
 3. observe first Wrangler deployment and verify `ianeo-orchestrator` creation;
 4. configure Telegram Worker runtime secrets and `TELEGRAM_OWNER_ID`;
@@ -213,4 +213,4 @@ After v0.1 is live, choose either a genuinely useful richer FAQ backend surface 
 
 ## One-line handoff
 
-Current truth: PR #1 remains open; GitHub deployment credentials are reported configured; FAQ now has the live Custom Domain `faq.drthorne.uk`; Wrangler is configured with that canonical URL plus `keep_vars = true`; final PR-head CI must pass before merge, and IANEO itself is still undeployed/unverified.
+Current truth: PR #1 is deployment-ready but still open; GitHub deployment credentials are reported configured; FAQ uses live Custom Domain `faq.drthorne.uk`; Wrangler contains the canonical FAQ URL plus `keep_vars = true`; one final latest-head CI pass is required before merge, and IANEO itself remains undeployed/unverified.
