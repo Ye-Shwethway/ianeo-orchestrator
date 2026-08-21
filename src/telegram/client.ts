@@ -2,11 +2,17 @@ export type TelegramInlineKeyboard = {
   inline_keyboard: Array<Array<{ text: string; callback_data: string }>>;
 };
 
-async function telegramApi(
+type TelegramApiResponse<T> = {
+  ok: boolean;
+  result?: T;
+  description?: string;
+};
+
+async function telegramApi<T>(
   botToken: string,
   method: string,
   body: Record<string, unknown>,
-): Promise<void> {
+): Promise<T | undefined> {
   const response = await fetch(
     `https://api.telegram.org/bot${botToken}/${method}`,
     {
@@ -16,9 +22,12 @@ async function telegramApi(
     },
   );
 
-  if (!response.ok) {
-    throw new Error(`Telegram ${method} failed with ${response.status}`);
+  const payload = (await response.json().catch(() => null)) as TelegramApiResponse<T> | null;
+  if (!response.ok || payload?.ok !== true) {
+    throw new Error(`Telegram ${method} failed: ${payload?.description ?? response.status}`);
   }
+
+  return payload.result;
 }
 
 export async function sendTelegramMessage(
@@ -26,12 +35,13 @@ export async function sendTelegramMessage(
   chatId: number,
   text: string,
   replyMarkup?: TelegramInlineKeyboard,
-): Promise<void> {
-  await telegramApi(botToken, "sendMessage", {
+): Promise<number | null> {
+  const result = await telegramApi<{ message_id?: number }>(botToken, "sendMessage", {
     chat_id: chatId,
     text,
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
+  return Number.isSafeInteger(result?.message_id) ? result?.message_id ?? null : null;
 }
 
 export async function editTelegramMessage(
