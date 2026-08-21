@@ -7,6 +7,15 @@ keep_vars = true
 [vars]
 FAQ_SERVICE_URL = "https://faq.drthorne.uk"
 
+[durable_objects]
+bindings = [
+  { name = "MENU_CLEANUP", class_name = "MenuCleanup" }
+]
+
+[[migrations]]
+tag = "v1-menu-cleanup"
+new_sqlite_classes = ["MenuCleanup"]
+
 [observability.logs]
 enabled = true
 head_sampling_rate = 1
