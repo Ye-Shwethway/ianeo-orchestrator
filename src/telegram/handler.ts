@@ -1,5 +1,6 @@
 import type { Env } from "../config/env";
 import type { AdapterRegistry } from "../core/adapter-registry";
+import type { Capability } from "../core/types";
 import {
   answerTelegramCallback,
   deleteTelegramMessage,
@@ -8,6 +9,7 @@ import {
 } from "./client";
 import {
   botsMenuKeyboard,
+  faqActionConfirmationKeyboard,
   faqMenuKeyboard,
   mainMenuKeyboard,
   systemMenuKeyboard,
@@ -30,7 +32,6 @@ async function adapterStatusLines(registry: AdapterRegistry): Promise<string[]> 
     ids.map(async (id) => {
       const adapter = registry.get(id);
       if (!adapter) return `🔴 ${id}: unavailable`;
-
       try {
         const status = await adapter.status();
         return `${status.ok ? "🟢" : "🔴"} ${id}: ${status.summary}`;
@@ -68,10 +69,7 @@ async function editCallbackMessage(
   );
 }
 
-async function closeCallbackMessage(
-  env: Env,
-  callback: TelegramCallbackQuery,
-): Promise<void> {
+async function closeCallbackMessage(env: Env, callback: TelegramCallbackQuery): Promise<void> {
   if (!callback.message) return;
   await deleteTelegramMessage(
     env.TELEGRAM_BOT_TOKEN,
@@ -86,52 +84,117 @@ async function sendResultAndClose(
   text: string,
 ): Promise<void> {
   if (!callback.message) return;
-  await sendTelegramMessage(
-    env.TELEGRAM_BOT_TOKEN,
-    callback.message.chat.id,
-    text,
-  );
+  await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, callback.message.chat.id, text);
   await closeCallbackMessage(env, callback);
 }
 
-function executionEnvironment(data: unknown): string | null {
-  if (!data || typeof data !== "object") return null;
-  const environment = (data as Record<string, unknown>).environment;
-  return typeof environment === "string" ? environment : null;
+function titleize(value: string): string {
+  return value
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/[._-]+/g, " ")
+    .replace(/^./, (letter) => letter.toUpperCase());
 }
 
-function faqOperationsText(ok: boolean, message: string, data: unknown): string {
-  if (!ok || !data || typeof data !== "object") {
-    return [`🔴 School of Nursing FAQ`, "", message].join("\n");
+function flattenData(value: unknown, prefix = ""): string[] {
+  if (value === null || value === undefined) return [];
+  if (typeof value !== "object") return prefix ? [`${prefix}: ${String(value)}`] : [String(value)];
+  if (Array.isArray(value)) {
+    return value.map((item, index) => `${prefix || "Item"} ${index + 1}: ${String(item)}`);
   }
 
-  const payload = data as Record<string, unknown>;
-  const monitoring = payload.monitoring as Record<string, unknown> | undefined;
-  const handoff = payload.handoff as Record<string, unknown> | undefined;
-  const stats = payload.stats as Record<string, unknown> | undefined;
+  const lines: string[] = [];
+  for (const [key, nested] of Object.entries(value as Record<string, unknown>)) {
+    if (key === "service") continue;
+    const label = prefix ? `${prefix} · ${titleize(key)}` : titleize(key);
+    if (nested !== null && typeof nested === "object") {
+      lines.push(...flattenData(nested, label));
+    } else if (nested !== undefined) {
+      lines.push(`${label}: ${String(nested)}`);
+    }
+  }
+  return lines;
+}
 
-  const value = (key: string) => {
-    const raw = stats?.[key];
-    return typeof raw === "number" ? String(raw) : "—";
-  };
-
+function faqActionText(
+  capability: Capability,
+  result: { ok: boolean; message: string; data?: unknown },
+): string {
   return [
-    "📊 School of Nursing FAQ",
-    "Operational Summary",
+    `${result.ok ? "🟢" : "🔴"} School of Nursing FAQ`,
+    capability.label ?? titleize(capability.id),
     "",
-    `Environment: ${typeof payload.environment === "string" ? payload.environment : "unknown"}`,
-    `Monitoring: ${typeof monitoring?.mode === "string" ? monitoring.mode : "unknown"}`,
-    `Handoff: ${typeof handoff?.route === "string" ? handoff.route : "unknown"}`,
-    `Staff Inbox: ${handoff?.staffInboxConfigured === true ? "configured" : "not configured"}`,
-    "",
-    `Users: ${value("users")}`,
-    `Questions: ${value("questions")}`,
-    `Pending questions: ${value("pendingQuestions")}`,
-    `Active cases: ${value("activeCases")}`,
-    `Active staff: ${value("activeStaff")}`,
-    `Sudo Admins: ${value("sudoAdmins")}`,
-    `Human-controlled conversations: ${value("humanControlledConversations")}`,
+    result.message,
+    ...flattenData(result.data),
   ].join("\n");
+}
+
+async function faqCapabilities(registry: AdapterRegistry): Promise<Capability[]> {
+  const adapter = registry.get("faq");
+  if (!adapter) return [];
+  try {
+    return await adapter.getCapabilities();
+  } catch {
+    return [];
+  }
+}
+
+async function openFaqMenu(
+  env: Env,
+  registry: AdapterRegistry,
+  callback: TelegramCallbackQuery,
+): Promise<void> {
+  const capabilities = await faqCapabilities(registry);
+  await editCallbackMessage(
+    env,
+    callback,
+    [
+      "🎓 School of Nursing FAQ",
+      "",
+      "Controls are discovered from the FAQ service capability registry.",
+      capabilities.length ? `${capabilities.length} capabilities available.` : "No capabilities available.",
+    ].join("\n"),
+    faqMenuKeyboard(capabilities),
+  );
+}
+
+async function runFaqAction(
+  env: Env,
+  registry: AdapterRegistry,
+  callback: TelegramCallbackQuery,
+  actionId: string,
+  confirmed: boolean,
+): Promise<void> {
+  const adapter = registry.get("faq");
+  if (!adapter) {
+    await sendResultAndClose(env, callback, "🔴 School of Nursing FAQ\n\nAdapter is not configured.");
+    return;
+  }
+
+  const capabilities = await adapter.getCapabilities();
+  const capability = capabilities.find((item) => item.id === actionId);
+  if (!capability) {
+    await sendResultAndClose(env, callback, `🔴 School of Nursing FAQ\n\nUnknown capability: ${actionId}`);
+    return;
+  }
+
+  if (!confirmed && (capability.requiresConfirmation || capability.safety !== "read")) {
+    await editCallbackMessage(
+      env,
+      callback,
+      [
+        "⚠️ Confirm FAQ action",
+        "",
+        capability.label ?? capability.id,
+        capability.description,
+        `Safety: ${capability.safety}`,
+      ].join("\n"),
+      faqActionConfirmationKeyboard(actionId),
+    );
+    return;
+  }
+
+  const result = await adapter.execute(actionId);
+  await sendResultAndClose(env, callback, faqActionText(capability, result));
 }
 
 async function handleCallback(
@@ -188,58 +251,19 @@ async function handleCallback(
   }
 
   if (data === "bot:faq") {
-    await editCallbackMessage(
-      env,
-      callback,
-      "🎓 School of Nursing FAQ\n\nConnected through direct HTTPS.\nAvailable controls: health + read-only operations.",
-      faqMenuKeyboard(),
-    );
+    await openFaqMenu(env, registry, callback);
     return;
   }
 
-  const adapter = registry.get("faq");
-
-  if (data === "bot:faq:health") {
-    if (!adapter) {
-      await sendResultAndClose(
-        env,
-        callback,
-        "🔴 School of Nursing FAQ\n\nAdapter is not configured.",
-      );
-      return;
-    }
-
-    const result = await adapter.execute("health");
-    const environment = executionEnvironment(result.data);
-    await sendResultAndClose(
-      env,
-      callback,
-      [
-        `${result.ok ? "🟢" : "🔴"} School of Nursing FAQ`,
-        "",
-        result.message,
-        environment ? `Environment: ${environment}` : null,
-      ].filter(Boolean).join("\n"),
-    );
+  const actionMatch = data.match(/^bot:faq:action:([a-z0-9._-]+)$/);
+  if (actionMatch) {
+    await runFaqAction(env, registry, callback, actionMatch[1], false);
     return;
   }
 
-  if (data === "bot:faq:operations") {
-    if (!adapter) {
-      await sendResultAndClose(
-        env,
-        callback,
-        "🔴 School of Nursing FAQ\n\nAdapter is not configured.",
-      );
-      return;
-    }
-
-    const result = await adapter.execute("operations");
-    await sendResultAndClose(
-      env,
-      callback,
-      faqOperationsText(result.ok, result.message, result.data),
-    );
+  const confirmMatch = data.match(/^bot:faq:confirm:([a-z0-9._-]+)$/);
+  if (confirmMatch) {
+    await runFaqAction(env, registry, callback, confirmMatch[1], true);
   }
 }
 
@@ -249,12 +273,9 @@ export async function handleTelegramWebhook(
   registry: AdapterRegistry,
 ): Promise<Response> {
   const secret = request.headers.get("x-telegram-bot-api-secret-token");
-  if (!secret || secret !== env.TELEGRAM_WEBHOOK_SECRET) {
-    return unauthorized();
-  }
+  if (!secret || secret !== env.TELEGRAM_WEBHOOK_SECRET) return unauthorized();
 
   let update: TelegramUpdate;
-
   try {
     update = (await request.json()) as TelegramUpdate;
   } catch {
@@ -267,13 +288,8 @@ export async function handleTelegramWebhook(
   }
 
   const message = update.message;
-  if (!message?.from || !message.text) {
-    return ok();
-  }
-
-  if (String(message.from.id) !== env.TELEGRAM_OWNER_ID) {
-    return ok();
-  }
+  if (!message?.from || !message.text) return ok();
+  if (String(message.from.id) !== env.TELEGRAM_OWNER_ID) return ok();
 
   const command = message.text.trim().split(/\s+/, 1)[0]?.split("@", 1)[0];
 
@@ -313,6 +329,5 @@ export async function handleTelegramWebhook(
     "Unknown command. Use /start, /bots, or /status.",
     mainMenuKeyboard(),
   );
-
   return ok();
 }
