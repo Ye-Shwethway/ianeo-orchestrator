@@ -2,6 +2,8 @@ export interface Capability {
   id: string;
   description: string;
   safety: "read" | "write" | "sensitive";
+  label?: string;
+  requiresConfirmation?: boolean;
 }
 
 export interface HealthResult {

@@ -26,13 +26,7 @@ Hierarchy:
 
 `IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
 
-Current:
-- `🤖 Bots`
-  - `🎓 School of Nursing FAQ`
-    - `🩺 Health`
-    - `📊 Operations`
-- `⚙️ System`
-  - `📊 Status`
+The Bots layer is adapter-driven. A service-specific submenu should be capability-driven whenever the target service exposes a manifest.
 
 Navigation edits one menu card in place. Every layer has `✕ Close`. Leaf actions send their result and auto-delete the menu card. No timer/scheduler/database exists solely for menu expiry.
 
@@ -47,49 +41,69 @@ Completed:
 - [x] Node 22 CI/deploy
 - [x] main merge auto-deploy rule
 - [x] layered Bots menu deployed and user-tested
-- [x] PR #5 menu manual/action-completion close implementation merged
+- [x] manual `✕ Close` + action-completion auto-close merged
+- [x] authenticated FAQ Operational Summary live-tested
+- [x] FAQ/IANEO service secrets confirmed attached to active 100% production versions after Cloudflare version mismatch repair
 
-## FAQ operational bridge — current slice
+## FAQ capability-control architecture — active slice
 
-FAQ repository main now contains a minimal protected endpoint:
+The FAQ service now exposes a generic authenticated control plane instead of requiring one endpoint per Telegram Owner command:
 
-`GET https://faq.drthorne.uk/internal/v1/status`
+- `GET /internal/v1/capabilities`
+- `GET /internal/v1/status` for backwards compatibility
+- `POST /internal/v1/actions/<action-id>`
 
-FAQ-side auth secret: `IANEO_SERVICE_TOKEN`.
+Current FAQ read capabilities:
+- `operations.status`
+- `monitoring.status`
+- `handoff.status`
+- `admins.summary`
+- `cases.summary`
 
-IANEO-side matching secret: `FAQ_SERVICE_TOKEN`.
+Each remote capability carries:
+- id
+- label/description
+- safety: `read`, `write`, or `sensitive`
+- `requiresConfirmation`
 
-The endpoint is read-only and aggregate-only. It returns:
-- environment
-- monitoring mode
-- handoff route + Staff Inbox configured boolean
-- users/questions/pending questions
-- active cases/staff
-- Sudo Admin count
-- human-controlled conversation count
+IANEO branch `feat/dynamic-faq-capabilities` changes `FaqAdapter.getCapabilities()` to discover that manifest over authenticated HTTPS. The Telegram FAQ submenu is then built from the discovered capabilities rather than hard-coded buttons.
 
-It does not return Telegram IDs, names, chat IDs, question bodies, or other private records.
+Action execution is generic: IANEO posts to `/internal/v1/actions/<action-id>`. The first static `operations` action remains backwards-compatible by mapping to `operations.status`.
 
-IANEO branch `feat/faq-operations-read` adds:
-- `FAQ_SERVICE_TOKEN` Env binding;
-- Bearer-authenticated FAQ operations fetch;
-- `operations` read capability;
-- `📊 Operations` FAQ submenu action;
-- compact Telegram operational summary;
-- local example binding.
+Generic UX safety is already prepared:
+- read actions execute directly;
+- write/sensitive/confirmation-required actions route to a confirmation card before execution;
+- target-service server-side enforcement remains authoritative;
+- the FAQ service currently enables read actions only, so confirmation UX does not yet grant write authority by itself.
 
-Pending:
-- [ ] targeted IANEO CI
-- [ ] merge + automatic deployment
-- [ ] configure the same dedicated secret value in FAQ Worker as `IANEO_SERVICE_TOKEN`
-- [ ] configure it in IANEO Worker as `FAQ_SERVICE_TOKEN`
-- [ ] verify wrong/missing bearer is blocked
-- [ ] live-test Telegram FAQ Operations
-- [ ] verify menu close/auto-close production behavior
+This avoids implementing 19 separate HTTP endpoints and 19 separate IANEO handlers for the FAQ Owner command set. Telegram commands and remote capabilities are separate interfaces over shared domain functions. Only useful, remote-safe operations should be registered.
 
-## Safety boundary
+## Current validation boundary
 
-FAQ control must never use Telegram bot-to-bot command forwarding. Read operations are allowed through the dedicated authenticated HTTP bridge. Future write/sensitive actions must be added one at a time and require explicit confirmation where appropriate.
+FAQ side:
+- production workflow for the capability-registry source changes must be green;
+- authenticated `GET /internal/v1/capabilities` must return five read actions;
+- generic read action dispatch must work;
+- unknown actions must fail closed;
+- existing Telegram/health/scheduled behavior must remain unchanged.
+
+IANEO side:
+- [ ] targeted CI on `feat/dynamic-faq-capabilities`
+- [ ] PR merge only if green
+- [ ] automatic production deploy verification
+- [ ] live Telegram FAQ submenu shows discovered Health + five remote reads
+- [ ] Monitoring Status works
+- [ ] Handoff Status works
+- [ ] Admin Summary works
+- [ ] Cases Summary works
+- [ ] Operational Summary remains compatible
+- [ ] close/auto-close behavior remains correct
+
+## Next control expansion
+
+After dynamic discovery is live, selected write actions can be added to the FAQ registry without changing the generic routing architecture. Recommended next write candidates are monitoring mode and handoff route because their domain functions already exist and their state transitions are bounded.
+
+Sensitive role-changing/destructive actions such as Sudo changes, AI credential/configuration changes, clearing messages, or other irreversible operations require explicit confirmation plus target-side audit/authorization semantics before registration.
 
 ## Deferred integrations
 

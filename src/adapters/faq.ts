@@ -12,21 +12,24 @@ type FaqHealthPayload = {
   environment?: string;
 };
 
-type FaqOperationsPayload = {
+type RemoteCapabilityPayload = {
+  id?: string;
+  label?: string;
+  description?: string;
+  safety?: "read" | "write" | "sensitive";
+  requiresConfirmation?: boolean;
+};
+
+type RemoteCapabilitiesResponse = {
   ok?: boolean;
-  service?: string;
-  environment?: string;
-  monitoring?: { mode?: string };
-  handoff?: { route?: string; staffInboxConfigured?: boolean };
-  stats?: {
-    users?: number;
-    questions?: number;
-    pendingQuestions?: number;
-    activeCases?: number;
-    activeStaff?: number;
-    sudoAdmins?: number;
-    humanControlledConversations?: number;
-  };
+  capabilities?: RemoteCapabilityPayload[];
+};
+
+type RemoteActionResponse = {
+  ok?: boolean;
+  action?: string;
+  safety?: string;
+  data?: unknown;
   error?: string;
 };
 
@@ -40,24 +43,57 @@ export class FaqAdapter implements ServiceAdapter {
     this.serviceToken = serviceToken;
   }
 
+  private authHeaders(): Record<string, string> {
+    return {
+      accept: "application/json",
+      ...(this.serviceToken ? { authorization: `Bearer ${this.serviceToken}` } : {}),
+    };
+  }
+
   async getCapabilities(): Promise<Capability[]> {
     const capabilities: Capability[] = [
       {
         id: "health",
+        label: "Health",
         description: "Check School of Nursing FAQ Bot health",
         safety: "read",
+        requiresConfirmation: false,
       },
     ];
 
-    if (this.serviceToken) {
+    if (!this.serviceToken) return capabilities;
+
+    try {
+      const response = await fetch(`${this.baseUrl}/internal/v1/capabilities`, {
+        method: "GET",
+        headers: this.authHeaders(),
+      });
+      const payload = (await response.json().catch(() => null)) as RemoteCapabilitiesResponse | null;
+      if (!response.ok || payload?.ok !== true || !Array.isArray(payload.capabilities)) {
+        throw new Error("capability discovery failed");
+      }
+
+      for (const remote of payload.capabilities) {
+        if (!remote.id || !remote.description || !remote.safety) continue;
+        capabilities.push({
+          id: remote.id,
+          label: remote.label ?? remote.id,
+          description: remote.description,
+          safety: remote.safety,
+          requiresConfirmation: remote.requiresConfirmation === true,
+        });
+      }
+      return capabilities;
+    } catch {
       capabilities.push({
-        id: "operations",
+        id: "operations.status",
+        label: "Operational Summary",
         description: "Read School of Nursing FAQ operational summary",
         safety: "read",
+        requiresConfirmation: false,
       });
+      return capabilities;
     }
-
-    return capabilities;
   }
 
   async health(): Promise<HealthResult> {
@@ -86,49 +122,42 @@ export class FaqAdapter implements ServiceAdapter {
         },
       };
     } catch {
-      return {
-        ok: false,
-        message: "FAQ Bot unreachable",
-      };
+      return { ok: false, message: "FAQ Bot unreachable" };
     }
   }
 
-  private async operations(): Promise<ExecutionResult> {
+  private async remoteAction(action: string): Promise<ExecutionResult> {
     if (!this.serviceToken) {
-      return {
-        ok: false,
-        message: "FAQ operations credential is not configured",
-      };
+      return { ok: false, message: "FAQ operations credential is not configured" };
     }
 
     try {
-      const response = await fetch(`${this.baseUrl}/internal/v1/status`, {
-        method: "GET",
-        headers: {
-          accept: "application/json",
-          authorization: `Bearer ${this.serviceToken}`,
+      const response = await fetch(
+        `${this.baseUrl}/internal/v1/actions/${encodeURIComponent(action)}`,
+        {
+          method: "POST",
+          headers: {
+            ...this.authHeaders(),
+            "content-type": "application/json",
+          },
+          body: "{}",
         },
-      });
-
-      const payload = (await response.json().catch(() => null)) as FaqOperationsPayload | null;
+      );
+      const payload = (await response.json().catch(() => null)) as RemoteActionResponse | null;
       if (!response.ok || payload?.ok !== true) {
         return {
           ok: false,
-          message: `FAQ operations endpoint returned HTTP ${response.status}`,
+          message: `FAQ action ${action} returned HTTP ${response.status}`,
           data: payload ?? undefined,
         };
       }
-
       return {
         ok: true,
-        message: "FAQ operational summary loaded",
-        data: payload,
+        message: `${action} completed`,
+        data: payload.data,
       };
     } catch {
-      return {
-        ok: false,
-        message: "FAQ operations endpoint unreachable",
-      };
+      return { ok: false, message: `FAQ action ${action} is unreachable` };
     }
   }
 
@@ -151,13 +180,8 @@ export class FaqAdapter implements ServiceAdapter {
       };
     }
 
-    if (action === "operations") {
-      return this.operations();
-    }
-
-    return {
-      ok: false,
-      message: `Unsupported FAQ action: ${action}`,
-    };
+    // Backwards compatibility with the first static Operations button.
+    if (action === "operations") action = "operations.status";
+    return this.remoteAction(action);
   }
 }
