@@ -59,13 +59,23 @@ GitHub repository
    -> Cloudflare Worker
 ```
 
-The first deployable version may use `workers.dev`. A later custom route such as `ianeo.drthorne.uk` is optional. IANEO must remain separate from the School of Nursing FAQ Worker.
+The first deployment keeps the generated `workers.dev` hostname enabled for bootstrap verification. `ianeo.drthorne.uk` is reserved as the stable production Custom Domain and is attached after the first successful deploy creates the Worker.
+
+IANEO remains separate from the School of Nursing FAQ Worker.
 
 ## Network model
 
 Services are distributed across different hosts and runtimes. Adapters therefore depend on configurable service URLs rather than physical IPs or assumed co-location.
 
-Potential stable hostnames may later include `ianeo.drthorne.uk`, `outline.drthorne.uk`, `upload.drthorne.uk`, `faq.drthorne.uk`, and `sandbox.drthorne.uk`, but none are prerequisites for v0.1.
+The first production target uses the verified Custom Domain:
+
+```text
+IANEO Worker -> https://faq.drthorne.uk -> School of Nursing FAQ Worker
+```
+
+The FAQ Custom Domain is intentional: Cloudflare Custom Domains can be invoked from another Worker in the same zone via normal `fetch()`, preserving the canonical direct-HTTPS architecture without introducing a Service Binding for this adapter.
+
+Future stable hostnames may include `ianeo.drthorne.uk`, `outline.drthorne.uk`, `upload.drthorne.uk`, and `sandbox.drthorne.uk` as integrations become real. Do not allocate domains merely for speculative breadth.
 
 ## Adapter contract
 
@@ -105,11 +115,13 @@ The health response contains `ok`, service identity, and environment. Therefore 
 ```text
 IANEO Worker
    -> FaqAdapter
-   -> GET {FAQ_SERVICE_URL}/health
+   -> GET https://faq.drthorne.uk/health
    -> FAQ Worker
 ```
 
-This integration requires **zero changes** to the FAQ repository. `FAQ_SERVICE_URL` is configurable and non-secret.
+Cloudflare-side verification reported on 2026-08-21 that `faq.drthorne.uk` was attached to `school-of-nursing-faq-bot` and `GET /health` returned HTTP 200 with `ok: true`, service `school-of-nursing-faq-bot`, and environment `production`. The existing workers.dev URL remains enabled.
+
+This integration requires **zero code changes** to the FAQ repository. `FAQ_SERVICE_URL` is non-secret and committed in Wrangler configuration as `https://faq.drthorne.uk`.
 
 The FAQ Telegram webhook is explicitly **not** treated as a service-control API. v0.1 exposes only the read-only health capability. If richer control is later justified, prefer a tiny dedicated authenticated internal endpoint rather than abusing Telegram ingress or refactoring the FAQ application.
 
@@ -141,7 +153,7 @@ The current FAQ `/health` integration is read-only and uses the target's already
 
 More advanced mechanisms such as Cloudflare Access may be considered later only if operational need justifies them.
 
-## Secret domains
+## Configuration and secret domains
 
 ### GitHub Actions Secrets
 
@@ -150,21 +162,23 @@ Deployment only:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
+These values are configured out of band and never committed.
+
 ### Cloudflare Worker Secrets
 
-Runtime only:
+Runtime credentials:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
-- `TELEGRAM_OWNER_ID`
 - future service-specific tokens
 
 ### Non-secret runtime configuration
 
-- `FAQ_SERVICE_URL`
-- future service base URLs
+- `FAQ_SERVICE_URL` — Wrangler-managed, canonical value `https://faq.drthorne.uk`
+- `TELEGRAM_OWNER_ID` — dashboard-managed plaintext variable
+- future non-secret service base URLs
 
-The public repository contains names/placeholders only, never secret values.
+`wrangler.toml` sets `keep_vars = true`, allowing dashboard-managed plaintext variables such as `TELEGRAM_OWNER_ID` to remain present across deployments while repository-managed variables remain explicit source configuration. Normal Wrangler deployment does not delete existing secrets.
 
 ## Telegram ingress
 
@@ -206,4 +220,4 @@ Cloudflare Worker + Telegram + adapters + HTTPS + secrets
 
 ## Current verification boundary
 
-The v0.1 implementation has produced successful GitHub Actions type-check validation. It is **not yet production-verified**. Deployment should wait until required GitHub deployment secrets and Cloudflare runtime configuration are ready, after which Telegram and FAQ health must be verified end to end.
+The FAQ Custom Domain and its health endpoint have been reported live-verified on Cloudflare. IANEO itself is **not yet production-verified**. PR #1 must pass final targeted CI, merge to `main`, deploy through Wrangler, receive its Telegram runtime configuration, then be verified end to end before production success is claimed.
