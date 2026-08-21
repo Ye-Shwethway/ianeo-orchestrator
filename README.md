@@ -42,7 +42,13 @@ The current branch provides:
 - Wrangler deployment workflow structure
 - first real adapter: School of Nursing FAQ Bot read-only health check
 
-The FAQ adapter calls the FAQ Worker's existing `GET /health` endpoint through direct HTTPS. It requires only the configurable non-secret `FAQ_SERVICE_URL`; the FAQ repository itself was not modified.
+The FAQ adapter calls the FAQ Worker's existing `GET /health` endpoint through direct HTTPS. The canonical non-secret production base URL is now:
+
+```text
+https://faq.drthorne.uk
+```
+
+Cloudflare-side verification reported that this Custom Domain is attached to the production `school-of-nursing-faq-bot` Worker and that `GET https://faq.drthorne.uk/health` returns the expected production health response. The FAQ repository itself was not modified.
 
 Observer Sandbox was also inspected. Its current Python/SQLite runtime exposes local CLI control but no existing remote HTTP surface, so Observer integration is deferred until a separately authorized minimal bridge is designed.
 
@@ -81,11 +87,16 @@ Cloudflare Worker secrets:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
+
+Dashboard-managed non-secret runtime variable:
+
 - `TELEGRAM_OWNER_ID`
 
-Non-secret service configuration:
+Wrangler-managed non-secret service configuration:
 
-- `FAQ_SERVICE_URL` — base URL of the deployed School of Nursing FAQ Worker
+- `FAQ_SERVICE_URL = https://faq.drthorne.uk`
+
+`wrangler.toml` uses `keep_vars = true` so dashboard-managed plaintext variables are preserved across deployments. Runtime secrets remain managed in Cloudflare and are not committed.
 
 Future protected integrations should use service-specific secrets rather than a shared master token.
 
@@ -109,11 +120,11 @@ development
    -> IANEO Cloudflare Worker
 ```
 
-The initial Worker may use its `workers.dev` hostname. `ianeo.drthorne.uk` can be added later without changing the adapter architecture.
+The first deploy keeps the generated workers.dev hostname enabled for bootstrap verification. After the Worker exists, `ianeo.drthorne.uk` can be attached as the stable Custom Domain without changing the adapter architecture.
 
 ## Current state
 
-PR #1 contains the v0.1 foundation and first FAQ health adapter. CI has produced successful type-check validation, but IANEO has **not yet been deployed or live-verified**. Production deployment should not be triggered until the required GitHub deployment secrets and Cloudflare runtime configuration are ready.
+PR #1 contains the v0.1 foundation and first FAQ health adapter. The user reports the two GitHub Actions deployment credentials are configured. FAQ Custom Domain readiness is established, but IANEO has **not yet been deployed or live-verified**. Final PR-head CI must pass before merge.
 
 ## Continuity
 
