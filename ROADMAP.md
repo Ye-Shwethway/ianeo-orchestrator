@@ -1,103 +1,192 @@
 # IANEO Orchestrator — Roadmap
 
-> Canonical durable roadmap for `Ye-Shwethway/ianeo-orchestrator`.
->
-> This file MUST be reviewed and kept current after every meaningful project change. See `AGENTS.md`.
+Canonical durable roadmap for `Ye-Shwethway/ianeo-orchestrator`.
 
-## Project intent
+`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are mandatory living continuity documents. Every meaningful implementation, architecture, integration, deployment, operational-state, or roadmap change MUST update both in the same work cycle. A feature or infrastructure change is not complete while continuity documentation is stale.
 
-Build the IANEO Orchestrator as a small, maintainable orchestration layer that can coordinate IANEO workflows across connected services and development surfaces without burying the project in unnecessary infrastructure.
+## Project goal
 
-The repository is currently at its foundation/bootstrap stage. Detailed implementation architecture will be added as the first runnable slices are defined and verified.
+Build **IANEO Orchestrator** as a lightweight personal Telegram command-center bot providing one unified interface for controlling and accessing multiple independent bots and services.
 
-## Operating principles
+IANEO is the unified Telegram front door, control plane, adapter/facade layer, and capability router. It is not a monolithic replacement for existing systems.
 
-- Continuity-first development.
-- Repository truth over remembered chat context.
-- Small, runnable, reviewable implementation slices.
-- Minimal architecture first; expand only when a real requirement justifies it.
-- Explicit state, ownership, and failure handling for orchestrated work.
-- No hidden divergence between implementation and documentation.
+Target integrations include Outline Manager Bot, URL Uploader Bot, School of Nursing FAQ Bot, Observer Sandbox, GitHub, Cloudflare, and future personal services.
 
-## Mandatory continuity contract
+## Locked architecture
 
-The root-level files below are permanent project infrastructure:
+- Runtime: TypeScript Cloudflare Worker.
+- Telegram ingress: webhook.
+- Service runtime integration: direct HTTPS/API through service-specific adapters.
+- Production FAQ endpoint: `https://faq.drthorne.uk`, attached as a Custom Domain to the existing FAQ Worker.
+- Initial IANEO deployment keeps `workers.dev` enabled; `ianeo.drthorne.uk` is reserved/available for attachment after the first successful deployment.
+- Service URLs are configurable; never hard-code physical hosts/IPs.
+- GitHub Actions are CI/validation/deployment only and never part of interactive orchestration.
+- Telegram bot-to-bot messaging is not the integration bus.
 
-- `AGENTS.md`
-- `ROADMAP.md`
-- `NEW_CHAT_BOOTSTRAP.md`
+Interactive path:
 
-### Required update rule
+`Telegram -> IANEO Worker -> adapter -> direct HTTPS/API -> target service`
 
-**Every meaningful implementation, architecture, integration, workflow, deployment, configuration, or project-state change must end with a reconciliation pass over both `ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md`.**
+Deployment path:
 
-A slice is not considered complete while either continuity document is stale.
+`GitHub -> GitHub Actions -> Wrangler -> Cloudflare Worker`
 
-## Current phase
+### Adapter contract
 
-### Phase 0 — Repository foundation
+Keep the normalized contract small:
 
-Status: **IN PROGRESS**
+- `getCapabilities()`
+- `health()`
+- `status()`
+- `execute(action, params)`
+
+Adapters translate this contract to each backend's real interface. Existing systems do not need identical REST APIs.
+
+### Existing-service policy
+
+Inspect callable surfaces first. Prefer zero-change integration. If none exists, add only the smallest authenticated bridge needed. Avoid architectural rewrites of existing bots.
+
+### Secrets and runtime configuration
+
+The repository is public. Never commit real credentials or sensitive logs.
+
+- GitHub Actions Secrets: deployment credentials only (`CLOUDFLARE_API_TOKEN`, `CLOUDFLARE_ACCOUNT_ID`).
+- Cloudflare Worker secrets: `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and future service-specific bearer tokens.
+- `TELEGRAM_OWNER_ID`: non-secret dashboard-managed Worker variable.
+- `FAQ_SERVICE_URL`: non-secret Wrangler-managed Worker variable, currently `https://faq.drthorne.uk`.
+- `keep_vars = true` preserves dashboard-managed plaintext vars such as `TELEGRAM_OWNER_ID` across Wrangler deployments; Wrangler-managed vars remain source-controlled.
+- Prefer separate credentials per service; never one global master token.
+
+### UX and safety
+
+Deterministic routing first; AI intent routing deferred.
+
+Current commands:
+
+- `/start`
+- `/status`
+
+Action classes remain Read, Normal Write, and Sensitive Control. Sensitive/destructive controls require confirmation when introduced.
+
+## Resource discipline
+
+Personal-use system. Avoid unnecessary databases, Durable Objects, queues, event buses, microservice frameworks, Kubernetes/service meshes, and premature AI/multi-agent architecture.
+
+Baseline:
+
+`Cloudflare Worker + Telegram + adapters + HTTPS + secrets`
+
+## v0.1 — Deployable foundation + first real read path
+
+Status: **PR #1 OPEN — final PR-head CI passed; ready to merge/deploy**
 
 Completed:
 
-- [x] Create repository.
-- [x] Establish high-level repository governance in `AGENTS.md`.
-- [x] Establish `ROADMAP.md` as the durable planning source.
-- [x] Establish `NEW_CHAT_BOOTSTRAP.md` as the fresh-session handoff source.
-- [x] Make continuous maintenance of both continuity documents an explicit project rule.
+- [x] continuity governance and source-of-truth rules
+- [x] concrete architecture/invariants
+- [x] minimal TypeScript Cloudflare Worker
+- [x] Telegram webhook-secret verification
+- [x] owner-only bootstrap access
+- [x] `/start`
+- [x] `/status`
+- [x] adapter contract/registry
+- [x] targeted CI
+- [x] Wrangler production-deploy workflow structure
+- [x] public-repository secret hygiene
+- [x] read-only reconnaissance of Observer Sandbox and School of Nursing FAQ Bot
+- [x] first adapter selected: School of Nursing FAQ Bot
+- [x] `FaqAdapter` added without modifying the FAQ repository
+- [x] direct HTTPS FAQ `GET /health` integration
+- [x] `/status` aggregates configured adapter health
+- [x] FAQ Custom Domain established as `faq.drthorne.uk` and reported live-verified with production health response
+- [x] canonical `FAQ_SERVICE_URL` committed as `https://faq.drthorne.uk`
+- [x] `keep_vars = true` added so dashboard-managed plaintext runtime vars can survive Wrangler deploys
+- [x] user reports GitHub Actions deployment secrets `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID` configured
+- [x] final PR-head GitHub Actions dependency-install + TypeScript type-check validation passed on 2026-08-21
 
-Pending:
+Still pending:
 
-- [ ] Define the first minimum-runnable orchestrator architecture.
-- [ ] Define the initial execution surface and deployment target.
-- [ ] Define configuration/secrets boundaries.
-- [ ] Define provider/connector adapters required by the first slice.
-- [ ] Define observability and failure-reporting minimums.
-- [ ] Implement and verify the first end-to-end orchestration path.
+- [ ] merge PR #1 to `main`
+- [ ] first production Wrangler deployment/create `ianeo-orchestrator`
+- [ ] configure IANEO Worker runtime secret `TELEGRAM_BOT_TOKEN`
+- [ ] configure IANEO Worker runtime secret `TELEGRAM_WEBHOOK_SECRET`
+- [ ] configure dashboard-managed `TELEGRAM_OWNER_ID`
+- [ ] live-verify the IANEO Worker
+- [ ] attach `ianeo.drthorne.uk` Custom Domain after the Worker exists
+- [ ] register Telegram webhook only after the production URL is verified
+- [ ] verify `/start`, `/status`, and FAQ health end to end
 
-## Planned phases
+Current toolchain:
 
-### Phase 1 — Minimum runnable orchestrator
+- `@cloudflare/workers-types` `^5.20260818.1`
+- `typescript` `^7.0.2`
+- `wrangler` `^4.124.0`
 
-Goal: one complete, understandable orchestration path from request/input to delegated execution to returned result.
+## First-adapter reconnaissance — 2026-08-21
 
-Scope will be finalized before implementation. Prefer the smallest architecture that proves the orchestration contract.
+### School of Nursing FAQ Bot — selected
 
-### Phase 2 — Reliability and state
+Observed:
 
-Potential concerns, only after Phase 1 proves the need:
+- TypeScript Cloudflare Worker
+- existing `GET /health`
+- existing `POST /telegram/webhook`
+- health response includes `ok`, service identity, and environment
 
-- durable job/state handling
-- retry/idempotency rules
-- execution history
-- structured error reporting
-- controlled concurrency
+Cloudflare-side verification reported on 2026-08-21:
 
-### Phase 3 — Expanded integrations
+- `faq.drthorne.uk` was unused before assignment
+- it is now attached as a Custom Domain to `school-of-nursing-faq-bot`
+- existing workers.dev exposure remains enabled
+- `GET https://faq.drthorne.uk/health` returned HTTP 200 with `ok: true`, service `school-of-nursing-faq-bot`, environment `production`
 
-Add integrations only when they support concrete workflows. Avoid building a generic integration framework ahead of requirements.
+Decision: `https://faq.drthorne.uk` is the canonical production `FAQ_SERVICE_URL`. This preserves the direct HTTPS adapter architecture and avoids coupling the first adapter to a Cloudflare Service Binding.
 
-### Phase 4 — Operational refinement
+The FAQ Telegram webhook is not treated as a service-control API. v0.1 exposes only the existing health capability. If richer FAQ control is needed later, assess the smallest authenticated `/internal/v1/...` bridge rather than refactoring the bot.
 
-Possible later work:
+### Observer Sandbox — deferred
 
-- richer monitoring
-- admin/operator controls
-- scheduling or event-driven execution where justified
-- deployment hardening
-- cost/runtime optimization
+Observed:
 
-## Decision log
+- Python 3.11+ package
+- CLI entry point `sandboxctl = observer_sandbox.cli:main`
+- status/autonomy/Creator controls operate through local Python/SQLite runtime paths
+- no HTTP server framework dependency declared
+- no existing remote HTTP control surface found during repository inspection
 
-### 2026-08-21 — Continuity docs are mandatory
+Decision: Observer remote integration requires a small authenticated bridge or equivalent callable surface on its host. No Observer repository change is authorized or implemented in this slice.
 
-Decision: `ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are permanent root-level canonical files and must be kept synchronized with repository state after every meaningful development slice.
+This contrast validates the adapter model: FAQ is zero-change HTTP integration; Observer can later receive a tiny service-specific bridge without forcing either backend into a shared architecture.
 
-Reason: new chats/sessions must be able to resume from repository truth without relying on fragile conversational memory.
+## Validation state
 
-## Next authorized planning target
+Latest PR head `da2102f66b2002a6f13397272914d80b6ac877b3` completed GitHub Actions CI run #24 successfully on 2026-08-21. Dependency installation and TypeScript type-check both passed. PR mergeability was re-read after CI and reported true before the merge step.
 
-Define the **first minimum-runnable orchestrator slice** and document its architecture before code implementation.
+## Production state
 
-Do not inflate the first slice into a broad platform. It should prove one real orchestration flow end to end.
+**IANEO is not deployed yet.** No `ianeo-orchestrator` production Worker, Telegram webhook, or live FAQ-through-IANEO path has been verified.
+
+Cloudflare-side readiness reported on 2026-08-21:
+
+- `faq.drthorne.uk` attached and production health verified
+- `ianeo.drthorne.uk` currently unused/available for later attachment
+- no manually-created empty IANEO Worker is needed; first Wrangler deploy can create it
+- initial deployment token permission can remain scoped to Account → Workers Scripts → Edit when the custom domain is attached later through the dashboard
+
+GitHub deployment credentials are reported configured by the user. Their secret values are never read or stored in the repository.
+
+## Next planned slice
+
+Finish v0.1 production deployment and live verification before adding another integration:
+
+1. merge PR #1 to `main`;
+2. observe the main-branch Wrangler deployment and verify `ianeo-orchestrator` is created;
+3. configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` as Cloudflare Worker secrets;
+4. configure `TELEGRAM_OWNER_ID` as a dashboard-managed plaintext variable;
+5. verify the Worker health endpoint on its initial production hostname;
+6. attach `ianeo.drthorne.uk` as the Custom Domain and verify it;
+7. register the Telegram webhook against the verified production URL;
+8. verify owner-only `/start`, `/status`, and FAQ health through IANEO;
+9. reconcile both continuity docs against verified live evidence.
+
+After v0.1 is live, choose between a genuinely useful richer FAQ backend surface or a separately authorized minimum Observer bridge. Do not add integrations merely for breadth.
