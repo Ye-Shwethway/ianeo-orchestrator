@@ -37,6 +37,10 @@ Deployment:
 
 GitHub Actions are CI/deployment only, never interactive runtime. IANEO does not control another Telegram bot by messaging it and scraping replies; it calls the backend/service behind that bot.
 
+The School of Nursing FAQ integration intentionally uses the FAQ Worker's Custom Domain so the first adapter remains direct HTTPS rather than a Cloudflare Service Binding:
+
+`IANEO Worker -> https://faq.drthorne.uk -> school-of-nursing-faq-bot`
+
 ## Adapter contract
 
 - `getCapabilities()`
@@ -51,13 +55,13 @@ Adapters translate this small common contract to each target's actual interface.
 - Branch: `bootstrap/v0.1-foundation`
 - PR: **#1 — Bootstrap IANEO Orchestrator v0.1 foundation**
 - Base: `main`
-- State: open; implementation CI has produced successful runs; merge is intentionally deferred until deployment configuration is ready
+- State: open and mergeable; user reports GitHub deployment credentials configured; final deployment-config update and CI verification are in progress
 
 ## Current implementation checkpoint
 
 PR #1 contains:
 
-- TypeScript Cloudflare Worker
+- TypeScript Cloudflare Worker named `ianeo-orchestrator`
 - IANEO `GET /health`
 - Telegram `POST /telegram/webhook`
 - Telegram webhook-secret verification
@@ -68,12 +72,30 @@ PR #1 contains:
 - targeted CI workflow
 - Wrangler production-deployment workflow structure
 - public-repository secret hygiene
-- configurable `FAQ_SERVICE_URL`
 - `FaqAdapter` using direct HTTPS to FAQ's existing `GET /health`
 - `/status` aggregation of configured adapter health
-- README and architecture docs reconciled with the first-adapter decision
+- canonical Wrangler-managed `FAQ_SERVICE_URL = https://faq.drthorne.uk`
+- `keep_vars = true` so dashboard-managed plaintext variables such as `TELEGRAM_OWNER_ID` are preserved across deploys
 
-No existing bot repository has been modified.
+No existing bot repository was modified by the IANEO implementation.
+
+## Cloudflare readiness checkpoint — 2026-08-21
+
+Reported Cloudflare-side verified state:
+
+- existing production FAQ Worker: `school-of-nursing-faq-bot`
+- `faq.drthorne.uk` was unused, then attached as a Custom Domain to that Worker
+- original FAQ workers.dev URL remains enabled
+- `GET https://faq.drthorne.uk/health` returned HTTP 200 with:
+  - `ok: true`
+  - service `school-of-nursing-faq-bot`
+  - environment `production`
+- canonical IANEO FAQ base URL: `https://faq.drthorne.uk`
+- `ianeo.drthorne.uk` is unused/available but intentionally not attached yet because `ianeo-orchestrator` does not exist until first deploy
+- no empty IANEO Worker was manually created
+- Telegram webhook has not been configured
+
+Current Cloudflare docs confirm Custom Domains can be invoked from another Worker in the same zone via `fetch()`, unlike same-zone Routes. This preserves the canonical direct-HTTPS architecture.
 
 ## First-adapter reconnaissance result
 
@@ -84,9 +106,7 @@ Inspection confirmed an HTTP-native TypeScript Cloudflare Worker with:
 - `GET /health`
 - `POST /telegram/webhook`
 
-The health endpoint returns `ok`, service identity, and environment. This supports a useful zero-change read-only adapter.
-
-Current FAQ capability is intentionally only `health`. The Telegram webhook is not a service-control API. `FAQ_SERVICE_URL` is a configurable non-secret endpoint binding; its real production value has not yet been configured or live-verified in IANEO.
+Current FAQ capability is intentionally only `health`. The Telegram webhook is not a service-control API. `FAQ_SERVICE_URL` is now locked to the non-secret production value `https://faq.drthorne.uk` in Wrangler configuration.
 
 ### Observer Sandbox — deferred
 
@@ -100,17 +120,29 @@ Inspection confirmed:
 
 Remote IANEO integration therefore requires a small authenticated bridge or another explicit remote callable surface. Do not modify Observer Sandbox for this without explicit authorization.
 
-The comparison validates the adapter architecture: FAQ uses zero-change HTTP integration while Observer can later use its own minimal bridge without forcing either backend into a shared architecture.
-
 ## Secrets/config boundary
 
 Public repository: never commit real tokens, sensitive IDs, passwords, credentials, private `.env` content, or sensitive logs.
 
-- GitHub Actions Secrets: deployment credentials such as `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
-- Cloudflare Worker secrets: Telegram/runtime credentials and future service-specific bearer tokens.
-- Non-secret service endpoints such as `FAQ_SERVICE_URL`: plain Worker vars/environment bindings.
+GitHub Actions deployment credentials:
 
-Prefer separate credentials per integration; no global master token.
+- `CLOUDFLARE_API_TOKEN`
+- `CLOUDFLARE_ACCOUNT_ID`
+
+The user reports both repository Actions secrets have been configured. Their actual values are not stored or exposed in source.
+
+Cloudflare Worker runtime secrets:
+
+- `TELEGRAM_BOT_TOKEN`
+- `TELEGRAM_WEBHOOK_SECRET`
+- future service-specific bearer tokens
+
+Cloudflare Worker non-secret configuration:
+
+- `FAQ_SERVICE_URL` — Wrangler-managed and committed as `https://faq.drthorne.uk`
+- `TELEGRAM_OWNER_ID` — dashboard-managed plaintext variable
+
+Wrangler has `keep_vars = true`, which preserves dashboard-managed variables not declared in Wrangler configuration on future deployments. Secrets are not deleted by normal Wrangler deployments.
 
 ## Validation state
 
@@ -120,31 +152,30 @@ Current toolchain:
 - `typescript` `^7.0.2`
 - `wrangler` `^4.124.0`
 
-PR #1 has produced successful GitHub Actions CI runs that installed dependencies and completed TypeScript type-checking. This verifies the branch can pass the targeted CI workflow. Confirm required checks are green at the actual merge point, but do not treat documentation-only head changes as a reason to claim the implementation is unvalidated.
+PR #1 previously produced successful GitHub Actions dependency-install and TypeScript type-check runs. The latest deployment-readiness update changes Wrangler configuration and documentation; confirm the final head CI result before merge.
 
 ## Production state
 
 IANEO is **not deployed or runtime-verified yet**.
 
-The production workflow is designed to run after changes reach `main`. Required GitHub deployment credentials therefore need to be configured before intentionally merging this bootstrap PR.
-
 Still required:
 
-- confirm/configure GitHub deployment secrets
-- merge PR #1 with required checks green
-- configure IANEO Worker Telegram/runtime secrets
-- configure verified production `FAQ_SERVICE_URL`
-- deploy via Wrangler
-- register Telegram webhook
-- verify owner-only `/start` and `/status`
-- verify FAQ health through IANEO direct HTTPS
+- confirm final PR-head CI green
+- merge PR #1 to `main`
+- observe first production Wrangler deployment/create `ianeo-orchestrator`
+- configure `TELEGRAM_BOT_TOKEN` and `TELEGRAM_WEBHOOK_SECRET` as Worker secrets
+- configure `TELEGRAM_OWNER_ID` as a Worker plaintext variable
+- verify IANEO health on the first deployed hostname
+- attach and verify `ianeo.drthorne.uk`
+- register Telegram webhook only after the production hostname is verified
+- verify owner-only `/start`, `/status`, and FAQ health through IANEO
 - reconcile continuity docs against verified live state
 
 Do not claim production success before live evidence exists.
 
 ## Active integrations
 
-- School of Nursing FAQ Bot: **read-only health adapter implemented; not live-verified**
+- School of Nursing FAQ Bot: **read-only health adapter implemented; FAQ Custom Domain live-verified; FAQ-through-IANEO not yet live-verified**
 - Observer Sandbox: **recon complete; remote bridge required; no target change implemented**
 - Outline Manager: pending
 - URL Uploader: pending
@@ -166,18 +197,20 @@ Do not claim production success before live evidence exists.
 
 ## Next planned slice
 
-Finish **v0.1 deployment readiness and live verification** before adding another integration:
+Finish **v0.1 production deployment and live verification** before adding another integration:
 
-1. confirm/configure GitHub deployment secrets used by the Wrangler workflow;
-2. merge PR #1 with required checks green;
-3. configure IANEO Worker runtime secrets and verified `FAQ_SERVICE_URL`;
-4. deploy the separate IANEO Worker;
-5. register Telegram webhook;
-6. verify `/start`, `/status`, and FAQ health end to end;
-7. update both continuity docs from verified runtime evidence.
+1. confirm final PR-head targeted CI is green;
+2. merge PR #1 to `main`;
+3. observe first Wrangler deployment and verify `ianeo-orchestrator` creation;
+4. configure Telegram Worker runtime secrets and `TELEGRAM_OWNER_ID`;
+5. verify IANEO Worker health;
+6. attach and verify `ianeo.drthorne.uk`;
+7. register Telegram webhook;
+8. verify `/start`, `/status`, and FAQ health end to end;
+9. update both continuity docs from verified runtime evidence.
 
 After v0.1 is live, choose either a genuinely useful richer FAQ backend surface or a separately authorized minimum Observer HTTP bridge. Do not expand the registry merely for breadth.
 
 ## One-line handoff
 
-Current truth: PR #1 contains the separate Cloudflare Worker Telegram command-center foundation plus the first zero-change FAQ health adapter; Observer needs a small remote bridge; targeted CI has succeeded; merge/deployment now waits on deployment configuration readiness, and production remains unverified.
+Current truth: PR #1 remains open; GitHub deployment credentials are reported configured; FAQ now has the live Custom Domain `faq.drthorne.uk`; Wrangler is configured with that canonical URL plus `keep_vars = true`; final PR-head CI must pass before merge, and IANEO itself is still undeployed/unverified.
