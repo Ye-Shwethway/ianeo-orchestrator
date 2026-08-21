@@ -29,28 +29,26 @@ Deployment:
 
 GitHub Actions are CI/deployment only. Telegram bot-to-bot messaging is not the integration bus.
 
+## Permanent production-delivery rule
+
+Normal production work uses:
+
+`branch -> PR -> targeted CI green -> merge to main -> automatic Deploy Production -> Wrangler -> Cloudflare`
+
+Every main merge must automatically trigger the production deployment workflow. Manual deployment is recovery/exception only. Never confuse CI green with production-deploy green; inspect the deployment result after merge.
+
 ## Current repository state
 
-PR #1 — `Bootstrap IANEO Orchestrator v0.1 foundation` — is **merged to `main`**.
-
-Current hotfix branch:
-
-`fix/node22-deploy`
-
-Reason: first production deploy failed because Wrangler `^4.124.0` requires Node.js `>=22.0.0`, while the deployment workflow used Node `20.20.2`.
-
-Hotfix contents:
-
-- production deployment workflow -> Node 22
-- CI workflow -> Node 22
-- `package.json` -> `engines.node >=22`
-- continuity docs -> deployment failure/current state recorded
-
-The failure occurred locally inside Wrangler before successful publication. Treat Cloudflare deployment credentials as **not yet verified by an actual deployment**, and treat `ianeo-orchestrator` as **not yet created/live-verified**.
+- PR #1 — `Bootstrap IANEO Orchestrator v0.1 foundation` — merged to `main`.
+- First production deploy failed because Wrangler `^4.124.0` requires Node.js `>=22.0.0`, while the workflow used Node `20.20.2`.
+- PR #2 — `Fix Wrangler deployment runtime to Node 22` — passed CI and merged to `main`.
+- CI and Deploy Production now use Node 22.
+- `package.json` declares `engines.node >=22`.
+- `Deploy Production` is configured to run on every push to `main` and also supports manual dispatch.
 
 ## Current implementation
 
-Main already contains:
+Main contains:
 
 - Worker name `ianeo-orchestrator`
 - `GET /health`
@@ -66,16 +64,26 @@ Main already contains:
 - `keep_vars = true`
 - `FAQ_SERVICE_URL = https://faq.drthorne.uk`
 
-## Cloudflare readiness
+## Cloudflare/runtime checkpoint — 2026-08-21
 
-Verified/reported Cloudflare-side state from 2026-08-21:
+User-reported operational state:
+
+- Node 22 hotfix is merged.
+- A manual production deployment completed successfully after the hotfix.
+- `ianeo-orchestrator` is therefore treated as deployed from user-reported operational evidence, but public endpoint health still needs explicit verification.
+- `TELEGRAM_BOT_TOKEN` has been entered as a Cloudflare Worker secret.
+- `TELEGRAM_WEBHOOK_SECRET` has been entered as a Cloudflare Worker secret.
+- `TELEGRAM_OWNER_ID` has been entered as a Cloudflare plaintext variable.
+- `FAQ_SERVICE_URL` remains repo/Wrangler-managed as `https://faq.drthorne.uk`.
+- `ianeo.drthorne.uk` still needs to be attached and verified.
+- Telegram webhook still needs to be registered and verified.
+
+Existing FAQ-side verified state:
 
 - production FAQ Worker: `school-of-nursing-faq-bot`
 - `faq.drthorne.uk` attached as its Custom Domain
 - original FAQ workers.dev URL still enabled
 - `GET https://faq.drthorne.uk/health` returned HTTP 200 with `ok: true`, service `school-of-nursing-faq-bot`, environment `production`
-- `ianeo.drthorne.uk` is unused/available but intentionally not attached until the IANEO Worker exists
-- Telegram webhook not configured
 
 Canonical FAQ path:
 
@@ -83,17 +91,17 @@ Canonical FAQ path:
 
 ## Secrets/config boundary
 
-GitHub Actions deployment secrets, reported configured by the user:
+GitHub Actions deployment secrets, configured by the user:
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-Cloudflare Worker runtime secrets still pending after first successful deployment:
+Cloudflare Worker runtime secrets, configured by the user:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
 
-Cloudflare plain runtime variable still pending:
+Cloudflare plaintext runtime variable, configured by the user:
 
 - `TELEGRAM_OWNER_ID`
 
@@ -111,28 +119,28 @@ Observer Sandbox reconnaissance found local Python/SQLite/CLI control but no rem
 
 ## Production state
 
-**Not live yet.**
+**Worker deployed; end-to-end live verification pending.**
 
-Verified sequence so far:
+Do not yet claim Telegram production success. The remaining proof boundary is:
 
-1. PR #1 merged to `main`.
-2. Main triggered `Deploy Production`.
-3. Install and type-check reached the deploy step.
-4. `npm run deploy` failed because Node 20.20.2 did not satisfy Wrangler's Node >=22 requirement.
-5. No successful Worker publication has been verified.
+1. IANEO `/health` responds successfully on the deployed hostname.
+2. `ianeo.drthorne.uk` is attached and `/health` succeeds there.
+3. Telegram webhook is registered using the configured webhook secret.
+4. `/start` works for the owner.
+5. `/status` successfully reports IANEO plus FAQ health through the direct HTTPS adapter.
 
 ## Next authorized slice
 
-1. validate `fix/node22-deploy` under Node 22;
-2. merge the hotfix to `main`;
-3. observe the triggered production deployment;
-4. confirm Worker creation and initial workers.dev `/health`;
-5. configure Telegram runtime secrets and `TELEGRAM_OWNER_ID`;
-6. attach `ianeo.drthorne.uk`;
-7. register Telegram webhook;
-8. verify owner-only `/start`, `/status`, and FAQ health end to end;
-9. reconcile continuity docs from live evidence.
+1. verify deployed IANEO `/health`;
+2. attach `ianeo.drthorne.uk` to `ianeo-orchestrator`;
+3. live-verify `GET https://ianeo.drthorne.uk/health`;
+4. register Telegram webhook at `https://ianeo.drthorne.uk/telegram/webhook` using the configured secret token;
+5. verify webhook registration;
+6. test owner-only `/start` and `/status`;
+7. verify FAQ health through IANEO;
+8. confirm next main merge auto-deploys without manual intervention;
+9. reconcile continuity docs from verified live evidence.
 
 ## One-line handoff
 
-Current truth: PR #1 is merged; the first production deployment failed only because the GitHub Actions deploy job used Node 20 while Wrangler requires Node 22; `fix/node22-deploy` is the active targeted hotfix, and IANEO remains undeployed/unverified until that hotfix produces a successful Cloudflare deployment.
+Current truth: PR #1 and the Node 22 deployment hotfix PR #2 are merged; IANEO has been manually deployed successfully and its Telegram runtime bindings are configured; merge-to-main auto-deploy is now a permanent project invariant; the next work is stable-domain, webhook, and end-to-end live verification.
