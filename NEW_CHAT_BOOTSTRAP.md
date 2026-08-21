@@ -9,138 +9,125 @@ Fresh-session continuity checkpoint for `Ye-Shwethway/ianeo-orchestrator`.
 3. `ROADMAP.md`
 4. task-relevant source/docs
 
-When sources conflict, prefer verified live/runtime evidence, then current repository state, then continuity docs, then remembered chat context.
+Verified runtime evidence wins over repository narrative; repository state wins over remembered chat context.
 
-## Permanent continuity rule
+## Permanent rules
 
-`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are mandatory living continuity documents. Every meaningful implementation, architecture, integration, deployment, operational-state, or roadmap change MUST update both in the same work cycle.
+`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` must be updated after every meaningful implementation/integration/deployment/operational change.
 
-## Project identity
+Normal production delivery is:
 
-IANEO Orchestrator is a separate TypeScript Cloudflare Worker acting as a lightweight personal Telegram command center over independent services.
+`branch -> PR -> targeted CI green -> merge main -> automatic Deploy Production -> Wrangler -> Cloudflare`
 
-Interactive runtime:
+Manual deployment is recovery-only. Check production deploy separately from CI.
 
-`Telegram -> webhook -> IANEO Worker -> adapter -> direct HTTPS/API -> target service`
+## Current live platform state — 2026-08-21
 
-Deployment:
+Cloudflare-side verified/reported state:
 
-`GitHub -> GitHub Actions -> Wrangler -> Cloudflare Worker`
-
-GitHub Actions are CI/deployment only. Telegram bot-to-bot messaging is not the integration bus.
-
-## Permanent production-delivery rule
-
-Normal production work uses:
-
-`branch -> PR -> targeted CI green -> merge to main -> automatic Deploy Production -> Wrangler -> Cloudflare`
-
-Every main merge must automatically trigger the production deployment workflow. Manual deployment is recovery/exception only. Never confuse CI green with production-deploy green; inspect the deployment result after merge.
+- IANEO Worker: `ianeo-orchestrator`
+- canonical public URL: `https://ianeo.drthorne.uk`
+- `GET https://ianeo.drthorne.uk/health` -> HTTP 200, `ok: true`, service `ianeo-orchestrator`, version `0.1.0`, adapters includes `faq`
+- production workers.dev `/health` also returns HTTP 200
+- production and preview workers.dev exposure remain enabled
+- FAQ canonical URL: `https://faq.drthorne.uk`
+- FAQ `/health` was live-verified production healthy
+- Telegram runtime values are configured in Cloudflare
+- Telegram webhook has been registered by the user
+- owner `/start` has been live-verified and returns the IANEO welcome response
+- owner `/status` FAQ-through-IANEO live verification is still pending
 
 ## Current repository state
 
-- PR #1 — `Bootstrap IANEO Orchestrator v0.1 foundation` — merged to `main`.
-- First production deploy failed because Wrangler `^4.124.0` requires Node.js `>=22.0.0`, while the workflow used Node `20.20.2`.
-- PR #2 — `Fix Wrangler deployment runtime to Node 22` — passed CI and merged to `main`.
-- CI and Deploy Production now use Node 22.
-- `package.json` declares `engines.node >=22`.
-- `Deploy Production` is configured to run on every push to `main` and also supports manual dispatch.
+Merged:
 
-## Current implementation
+- PR #1 — v0.1 foundation
+- PR #2 — Node 22 Wrangler deployment hotfix
+- PR #3 — live deployment checkpoint + permanent auto-deploy rule
 
-Main contains:
+Current development branch:
 
-- Worker name `ianeo-orchestrator`
-- `GET /health`
-- Telegram `POST /telegram/webhook`
-- Telegram webhook-secret verification
-- owner-only access via `TELEGRAM_OWNER_ID`
+`feat/bots-menu-foundation`
+
+## Current implementation on main
+
+- owner-only Telegram webhook
 - `/start`
 - `/status`
 - adapter registry/contract
 - `FaqAdapter`
-- `/status` adapter health aggregation
+- direct HTTPS FAQ health
 - `workers_dev = true`
 - `keep_vars = true`
 - `FAQ_SERVICE_URL = https://faq.drthorne.uk`
+- GitHub Actions CI + automatic main-branch production deployment using Node 22
 
-## Cloudflare/runtime checkpoint — 2026-08-21
+## Active slice — layered Bots menu
 
-User-reported operational state:
+User explicitly requires a dedicated bot-list layer because IANEO will integrate multiple bots/services.
 
-- Node 22 hotfix is merged.
-- A manual production deployment completed successfully after the hotfix.
-- `ianeo-orchestrator` is therefore treated as deployed from user-reported operational evidence, but public endpoint health still needs explicit verification.
-- `TELEGRAM_BOT_TOKEN` has been entered as a Cloudflare Worker secret.
-- `TELEGRAM_WEBHOOK_SECRET` has been entered as a Cloudflare Worker secret.
-- `TELEGRAM_OWNER_ID` has been entered as a Cloudflare plaintext variable.
-- `FAQ_SERVICE_URL` remains repo/Wrangler-managed as `https://faq.drthorne.uk`.
-- `ianeo.drthorne.uk` still needs to be attached and verified.
-- Telegram webhook still needs to be registered and verified.
+Canonical Telegram hierarchy:
 
-Existing FAQ-side verified state:
+`IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
 
-- production FAQ Worker: `school-of-nursing-faq-bot`
-- `faq.drthorne.uk` attached as its Custom Domain
-- original FAQ workers.dev URL still enabled
-- `GET https://faq.drthorne.uk/health` returned HTTP 200 with `ok: true`, service `school-of-nursing-faq-bot`, environment `production`
+A separate `System` layer remains at the root.
 
-Canonical FAQ path:
+Branch implementation currently adds:
 
-`IANEO Worker -> https://faq.drthorne.uk -> school-of-nursing-faq-bot`
+- callback-query support
+- inline keyboard send/edit/callback helpers
+- `/menu`
+- `/bots`
+- root buttons: `🤖 Bots`, `⚙️ System`
+- Bots list generated from configured adapters
+- `🎓 School of Nursing FAQ` submenu
+- FAQ `🩺 Health` action
+- System `📊 Status` action
+- edit-in-place navigation/back buttons
+
+Do not show controls that the backend does not support.
+
+## FAQ control reconnaissance
+
+FAQ repository inspection confirms substantial Telegram-native management logic already exists, including owner/Sudo Admin handling and commands such as `/admin`, `/admins`, `/sudo`, plus monitoring/handoff systems.
+
+However these are internal Telegram/runtime control paths, not a remote HTTP API. IANEO must not use Telegram bot-to-bot command forwarding.
+
+After the Bots menu foundation is live, the next FAQ slice should expose the smallest authenticated remote `/internal/v1/...` bridge needed for useful operational control. Prefer read-only status/monitoring/handoff/stat summaries first. Use a dedicated service token. Sensitive actions require confirmation.
 
 ## Secrets/config boundary
 
-GitHub Actions deployment secrets, configured by the user:
+GitHub Actions secrets:
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-Cloudflare Worker runtime secrets, configured by the user:
+Cloudflare Worker runtime secrets:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
+- future service-specific tokens
 
-Cloudflare plaintext runtime variable, configured by the user:
+Cloudflare plain variable:
 
 - `TELEGRAM_OWNER_ID`
 
-Repo-managed non-secret variable:
+Repo-managed variable:
 
 - `FAQ_SERVICE_URL = https://faq.drthorne.uk`
 
-Never place real secret values in repository source or chat-visible docs.
+Never commit real secret values.
 
-## First-adapter state
+## Next actions
 
-School of Nursing FAQ Bot is the first adapter. It uses the existing public read-only `GET /health`; no FAQ repository changes were needed.
-
-Observer Sandbox reconnaissance found local Python/SQLite/CLI control but no remote HTTP surface. Observer integration remains deferred until a separately authorized minimal authenticated bridge.
-
-## Production state
-
-**Worker deployed; end-to-end live verification pending.**
-
-Do not yet claim Telegram production success. The remaining proof boundary is:
-
-1. IANEO `/health` responds successfully on the deployed hostname.
-2. `ianeo.drthorne.uk` is attached and `/health` succeeds there.
-3. Telegram webhook is registered using the configured webhook secret.
-4. `/start` works for the owner.
-5. `/status` successfully reports IANEO plus FAQ health through the direct HTTPS adapter.
-
-## Next authorized slice
-
-1. verify deployed IANEO `/health`;
-2. attach `ianeo.drthorne.uk` to `ianeo-orchestrator`;
-3. live-verify `GET https://ianeo.drthorne.uk/health`;
-4. register Telegram webhook at `https://ianeo.drthorne.uk/telegram/webhook` using the configured secret token;
-5. verify webhook registration;
-6. test owner-only `/start` and `/status`;
-7. verify FAQ health through IANEO;
-8. confirm next main merge auto-deploys without manual intervention;
-9. reconcile continuity docs from verified live evidence.
+1. run targeted CI on `feat/bots-menu-foundation`;
+2. merge only if green;
+3. verify automatic main-branch Deploy Production succeeds without manual deploy;
+4. live-test `/start` -> `🤖 Bots` -> FAQ -> `🩺 Health` and back navigation;
+5. live-test System -> Status and verify FAQ healthy;
+6. reconcile continuity docs from the deployed evidence;
+7. then design the minimum authenticated FAQ control bridge.
 
 ## One-line handoff
 
-Current truth: PR #1 and the Node 22 deployment hotfix PR #2 are merged; IANEO has been manually deployed successfully and its Telegram runtime bindings are configured; merge-to-main auto-deploy is now a permanent project invariant; the next work is stable-domain, webhook, and end-to-end live verification.
+Current truth: IANEO is live at `ianeo.drthorne.uk`, Telegram `/start` works, FAQ health is connected, and the active slice is a dedicated layered Bots menu that will become the scalable navigation foundation for all future bot/service integrations; richer FAQ control still needs a minimal authenticated remote bridge.
