@@ -1,7 +1,17 @@
 import type { Env } from "../config/env";
 import type { AdapterRegistry } from "../core/adapter-registry";
-import { sendTelegramMessage } from "./client";
-import type { TelegramUpdate } from "./types";
+import {
+  answerTelegramCallback,
+  editTelegramMessage,
+  sendTelegramMessage,
+} from "./client";
+import {
+  botsMenuKeyboard,
+  faqMenuKeyboard,
+  mainMenuKeyboard,
+  systemMenuKeyboard,
+} from "./menu";
+import type { TelegramCallbackQuery, TelegramUpdate } from "./types";
 
 function unauthorized(): Response {
   return new Response("Unauthorized", { status: 401 });
@@ -30,6 +40,127 @@ async function adapterStatusLines(registry: AdapterRegistry): Promise<string[]> 
   );
 }
 
+async function systemStatusText(registry: AdapterRegistry): Promise<string> {
+  const serviceLines = await adapterStatusLines(registry);
+  return [
+    "🟢 IANEO Orchestrator",
+    "Runtime: Cloudflare Worker",
+    "Mode: owner-only bootstrap",
+    "",
+    ...serviceLines,
+  ].join("\n");
+}
+
+async function editCallbackMessage(
+  env: Env,
+  callback: TelegramCallbackQuery,
+  text: string,
+  keyboard: ReturnType<typeof mainMenuKeyboard>,
+): Promise<void> {
+  if (!callback.message) return;
+  await editTelegramMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    callback.message.chat.id,
+    callback.message.message_id,
+    text,
+    keyboard,
+  );
+}
+
+async function handleCallback(
+  env: Env,
+  registry: AdapterRegistry,
+  callback: TelegramCallbackQuery,
+): Promise<void> {
+  if (String(callback.from.id) !== env.TELEGRAM_OWNER_ID) {
+    await answerTelegramCallback(env.TELEGRAM_BOT_TOKEN, callback.id, "Owner only");
+    return;
+  }
+
+  const data = callback.data ?? "";
+  await answerTelegramCallback(env.TELEGRAM_BOT_TOKEN, callback.id);
+
+  if (data === "menu:main") {
+    await editCallbackMessage(
+      env,
+      callback,
+      "🤖 IANEO\n\nPersonal command center online.",
+      mainMenuKeyboard(),
+    );
+    return;
+  }
+
+  if (data === "menu:bots") {
+    await editCallbackMessage(
+      env,
+      callback,
+      "🤖 Bots\n\nChoose a connected service.",
+      botsMenuKeyboard(registry),
+    );
+    return;
+  }
+
+  if (data === "menu:system") {
+    await editCallbackMessage(
+      env,
+      callback,
+      "⚙️ System\n\nIANEO runtime controls and status.",
+      systemMenuKeyboard(),
+    );
+    return;
+  }
+
+  if (data === "system:status") {
+    await editCallbackMessage(
+      env,
+      callback,
+      await systemStatusText(registry),
+      systemMenuKeyboard(),
+    );
+    return;
+  }
+
+  if (data === "bot:faq") {
+    await editCallbackMessage(
+      env,
+      callback,
+      "🎓 School of Nursing FAQ\n\nConnected through direct HTTPS.\nAvailable control: read-only health.",
+      faqMenuKeyboard(),
+    );
+    return;
+  }
+
+  if (data === "bot:faq:health") {
+    const adapter = registry.get("faq");
+    if (!adapter) {
+      await editCallbackMessage(
+        env,
+        callback,
+        "🔴 School of Nursing FAQ\n\nAdapter is not configured.",
+        faqMenuKeyboard(),
+      );
+      return;
+    }
+
+    const result = await adapter.execute("health");
+    const environment = result.data?.environment;
+    await editCallbackMessage(
+      env,
+      callback,
+      [
+        `${result.ok ? "🟢" : "🔴"} School of Nursing FAQ`,
+        "",
+        result.message,
+        environment ? `Environment: ${String(environment)}` : null,
+      ].filter(Boolean).join("\n"),
+      faqMenuKeyboard(),
+    );
+    return;
+  }
+
+  await answerTelegramCallback(env.TELEGRAM_BOT_TOKEN, callback.id, "Unknown action");
+}
+
 export async function handleTelegramWebhook(
   request: Request,
   env: Env,
@@ -48,6 +179,11 @@ export async function handleTelegramWebhook(
     return new Response("Invalid JSON", { status: 400 });
   }
 
+  if (update.callback_query) {
+    await handleCallback(env, registry, update.callback_query);
+    return ok();
+  }
+
   const message = update.message;
   if (!message?.from || !message.text) {
     return ok();
@@ -59,35 +195,32 @@ export async function handleTelegramWebhook(
 
   const command = message.text.trim().split(/\s+/, 1)[0]?.split("@", 1)[0];
 
-  if (command === "/start") {
+  if (command === "/start" || command === "/menu") {
     await sendTelegramMessage(
       env.TELEGRAM_BOT_TOKEN,
       message.chat.id,
-      [
-        "🤖 IANEO",
-        "",
-        "Personal command center online.",
-        "",
-        "Available now:",
-        "• /status — Orchestrator and service health",
-      ].join("\n"),
+      "🤖 IANEO\n\nPersonal command center online.",
+      mainMenuKeyboard(),
+    );
+    return ok();
+  }
+
+  if (command === "/bots") {
+    await sendTelegramMessage(
+      env.TELEGRAM_BOT_TOKEN,
+      message.chat.id,
+      "🤖 Bots\n\nChoose a connected service.",
+      botsMenuKeyboard(registry),
     );
     return ok();
   }
 
   if (command === "/status") {
-    const serviceLines = await adapterStatusLines(registry);
-
     await sendTelegramMessage(
       env.TELEGRAM_BOT_TOKEN,
       message.chat.id,
-      [
-        "🟢 IANEO Orchestrator",
-        "Runtime: Cloudflare Worker",
-        "Mode: owner-only bootstrap",
-        "",
-        ...serviceLines,
-      ].join("\n"),
+      await systemStatusText(registry),
+      systemMenuKeyboard(),
     );
     return ok();
   }
@@ -95,7 +228,8 @@ export async function handleTelegramWebhook(
   await sendTelegramMessage(
     env.TELEGRAM_BOT_TOKEN,
     message.chat.id,
-    "Unknown command. Use /start or /status.",
+    "Unknown command. Use /start, /bots, or /status.",
+    mainMenuKeyboard(),
   );
 
   return ok();
