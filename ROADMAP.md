@@ -2,7 +2,7 @@
 
 Canonical durable roadmap for `Ye-Shwethway/ianeo-orchestrator`.
 
-`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are mandatory living continuity documents. Every meaningful implementation, architecture, integration, deployment, operational-state, or roadmap change MUST update both in the same work cycle.
+`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` are mandatory living continuity documents. Every meaningful implementation, architecture, integration, deployment, operational-state, or roadmap change MUST update both files in the same work cycle.
 
 ## Locked architecture
 
@@ -28,7 +28,15 @@ Hierarchy:
 
 The Bots layer is adapter-driven. A service-specific submenu should be capability-driven whenever the target service exposes a manifest.
 
-Navigation edits one menu card in place. Every layer has `✕ Close`. Leaf actions send their result and auto-delete the menu card. No timer/scheduler/database exists solely for menu expiry.
+Menu-card contract:
+- navigation edits the same card in place;
+- every menu/result layer has `✕ Close`;
+- leaf results stay open as the same card and expose `⬅️ Back` + `✕ Close`;
+- menu/result cards auto-delete after about 5 minutes of inactivity;
+- every navigation/action interaction resets that 5-minute inactivity window;
+- manual Close cancels the scheduled cleanup and deletes immediately.
+
+Reliable 5-minute cleanup uses one minimal `MenuCleanup` Durable Object class with alarms. `waitUntil()` is not used for the timer because Cloudflare only extends post-response execution for about 30 seconds.
 
 ## Production foundation
 
@@ -41,14 +49,13 @@ Completed:
 - [x] Node 22 CI/deploy
 - [x] main merge auto-deploy rule
 - [x] layered Bots menu deployed and user-tested
-- [x] manual `✕ Close` + action-completion auto-close merged
 - [x] authenticated FAQ Operational Summary live-tested
-- [x] FAQ/IANEO service secrets confirmed attached to active 100% production versions after Cloudflare version mismatch repair
+- [x] FAQ/IANEO service secrets attached to active production versions after Cloudflare version mismatch repair
+- [x] capability-driven FAQ control discovery and generic read dispatch merged
 
-## FAQ capability-control architecture — active slice
+## FAQ capability-control architecture
 
-The FAQ service now exposes a generic authenticated control plane instead of requiring one endpoint per Telegram Owner command:
-
+FAQ exposes:
 - `GET /internal/v1/capabilities`
 - `GET /internal/v1/status` for backwards compatibility
 - `POST /internal/v1/actions/<action-id>`
@@ -60,50 +67,36 @@ Current FAQ read capabilities:
 - `admins.summary`
 - `cases.summary`
 
-Each remote capability carries:
-- id
-- label/description
-- safety: `read`, `write`, or `sensitive`
-- `requiresConfirmation`
+Each remote capability carries id, label/description, safety (`read`, `write`, `sensitive`) and confirmation metadata. IANEO builds the FAQ submenu from this manifest instead of hard-coded command wrappers.
 
-IANEO branch `feat/dynamic-faq-capabilities` changes `FaqAdapter.getCapabilities()` to discover that manifest over authenticated HTTPS. The Telegram FAQ submenu is then built from the discovered capabilities rather than hard-coded buttons.
+Telegram Owner commands and remote capabilities remain separate interfaces over shared domain functions. No Telegram bot-to-bot command forwarding.
 
-Action execution is generic: IANEO posts to `/internal/v1/actions/<action-id>`. The first static `operations` action remains backwards-compatible by mapping to `operations.status`.
+## Active UX slice — result navigation + inactivity TTL
 
-Generic UX safety is already prepared:
-- read actions execute directly;
-- write/sensitive/confirmation-required actions route to a confirmation card before execution;
-- target-service server-side enforcement remains authoritative;
-- the FAQ service currently enables read actions only, so confirmation UX does not yet grant write authority by itself.
+Branch: `feat/menu-result-back-ttl`
 
-This avoids implementing 19 separate HTTP endpoints and 19 separate IANEO handlers for the FAQ Owner command set. Telegram commands and remote capabilities are separate interfaces over shared domain functions. Only useful, remote-safe operations should be registered.
+Implemented:
+- [x] FAQ action results remain in the current card
+- [x] System Status result remains in the current card
+- [x] result cards expose `⬅️ Back` + `✕ Close`
+- [x] reusable 5-minute inactivity cleanup scheduler
+- [x] `MenuCleanup` Durable Object alarm resets on card interaction
+- [x] `/start`, `/menu`, `/bots`, `/status` cards schedule cleanup from creation
+- [x] manual Close cancels cleanup
+- [x] Wrangler Durable Object binding + first migration
 
-## Current validation boundary
-
-FAQ side:
-- production workflow for the capability-registry source changes must be green;
-- authenticated `GET /internal/v1/capabilities` must return five read actions;
-- generic read action dispatch must work;
-- unknown actions must fail closed;
-- existing Telegram/health/scheduled behavior must remain unchanged.
-
-IANEO side:
-- [ ] targeted CI on `feat/dynamic-faq-capabilities`
-- [ ] PR merge only if green
-- [ ] automatic production deploy verification
-- [ ] live Telegram FAQ submenu shows discovered Health + five remote reads
-- [ ] Monitoring Status works
-- [ ] Handoff Status works
-- [ ] Admin Summary works
-- [ ] Cases Summary works
-- [ ] Operational Summary remains compatible
-- [ ] close/auto-close behavior remains correct
+Pending:
+- [ ] targeted CI
+- [ ] merge only if green
+- [ ] automatic Deploy Production verification
+- [ ] live Telegram Back/Close verification
+- [ ] live 5-minute inactivity auto-delete verification
 
 ## Next control expansion
 
-After dynamic discovery is live, selected write actions can be added to the FAQ registry without changing the generic routing architecture. Recommended next write candidates are monitoring mode and handoff route because their domain functions already exist and their state transitions are bounded.
+After the UX slice is live, continue adding bounded write actions through the same capability registry. Best first write candidates remain monitoring mode and handoff route because their FAQ domain functions already exist and are bounded.
 
-Sensitive role-changing/destructive actions such as Sudo changes, AI credential/configuration changes, clearing messages, or other irreversible operations require explicit confirmation plus target-side audit/authorization semantics before registration.
+Sensitive role-changing/destructive actions such as Sudo changes, AI credential/config changes and message clearing require explicit confirmation plus target-side authorization/audit semantics before registration.
 
 ## Deferred integrations
 
