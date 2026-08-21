@@ -41,7 +41,8 @@ export async function sendTelegramMessage(
     text,
     ...(replyMarkup ? { reply_markup: replyMarkup } : {}),
   });
-  return Number.isSafeInteger(result?.message_id) ? result?.message_id ?? null : null;
+  const messageId = result?.message_id;
+  return typeof messageId === "number" && Number.isSafeInteger(messageId) ? messageId : null;
 }
 
 export async function editTelegramMessage(
