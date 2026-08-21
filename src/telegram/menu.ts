@@ -48,6 +48,15 @@ export function faqMenuKeyboard(capabilities: Capability[]): TelegramInlineKeybo
   return { inline_keyboard: rows };
 }
 
+export function faqResultKeyboard(): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [{ text: "⬅️ Back", callback_data: "bot:faq" }],
+      closeRow,
+    ],
+  };
+}
+
 export function faqActionConfirmationKeyboard(actionId: string): TelegramInlineKeyboard {
   return {
     inline_keyboard: [
@@ -63,6 +72,15 @@ export function systemMenuKeyboard(): TelegramInlineKeyboard {
     inline_keyboard: [
       [{ text: "📊 Status", callback_data: "system:status" }],
       [{ text: "⬅️ Main Menu", callback_data: "menu:main" }],
+      closeRow,
+    ],
+  };
+}
+
+export function systemResultKeyboard(): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [{ text: "⬅️ Back", callback_data: "menu:system" }],
       closeRow,
     ],
   };

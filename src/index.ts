@@ -4,6 +4,8 @@ import { AdapterRegistry } from "./core/adapter-registry";
 import type { ServiceAdapter } from "./core/types";
 import { handleTelegramWebhook } from "./telegram/handler";
 
+export { MenuCleanup } from "./telegram/menu-cleanup";
+
 function buildRegistry(env: Env): AdapterRegistry {
   const adapters: ServiceAdapter[] = [];
 
