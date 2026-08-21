@@ -7,12 +7,15 @@ import {
   editTelegramMessage,
   sendTelegramMessage,
 } from "./client";
+import { cancelMenuCleanup, scheduleMenuCleanup } from "./menu-cleanup";
 import {
   botsMenuKeyboard,
   faqActionConfirmationKeyboard,
   faqMenuKeyboard,
+  faqResultKeyboard,
   mainMenuKeyboard,
   systemMenuKeyboard,
+  systemResultKeyboard,
 } from "./menu";
 import type { TelegramCallbackQuery, TelegramUpdate } from "./types";
 
@@ -67,10 +70,12 @@ async function editCallbackMessage(
     text,
     keyboard,
   );
+  await scheduleMenuCleanup(env, callback.message.chat.id, callback.message.message_id);
 }
 
 async function closeCallbackMessage(env: Env, callback: TelegramCallbackQuery): Promise<void> {
   if (!callback.message) return;
+  await cancelMenuCleanup(env, callback.message.chat.id, callback.message.message_id);
   await deleteTelegramMessage(
     env.TELEGRAM_BOT_TOKEN,
     callback.message.chat.id,
@@ -78,14 +83,14 @@ async function closeCallbackMessage(env: Env, callback: TelegramCallbackQuery): 
   );
 }
 
-async function sendResultAndClose(
+async function sendMenuCard(
   env: Env,
-  callback: TelegramCallbackQuery,
+  chatId: number,
   text: string,
+  keyboard: ReturnType<typeof mainMenuKeyboard>,
 ): Promise<void> {
-  if (!callback.message) return;
-  await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, callback.message.chat.id, text);
-  await closeCallbackMessage(env, callback);
+  const messageId = await sendTelegramMessage(env.TELEGRAM_BOT_TOKEN, chatId, text, keyboard);
+  if (messageId !== null) await scheduleMenuCleanup(env, chatId, messageId);
 }
 
 function titleize(value: string): string {
@@ -166,14 +171,24 @@ async function runFaqAction(
 ): Promise<void> {
   const adapter = registry.get("faq");
   if (!adapter) {
-    await sendResultAndClose(env, callback, "🔴 School of Nursing FAQ\n\nAdapter is not configured.");
+    await editCallbackMessage(
+      env,
+      callback,
+      "🔴 School of Nursing FAQ\n\nAdapter is not configured.",
+      faqResultKeyboard(),
+    );
     return;
   }
 
   const capabilities = await adapter.getCapabilities();
   const capability = capabilities.find((item) => item.id === actionId);
   if (!capability) {
-    await sendResultAndClose(env, callback, `🔴 School of Nursing FAQ\n\nUnknown capability: ${actionId}`);
+    await editCallbackMessage(
+      env,
+      callback,
+      `🔴 School of Nursing FAQ\n\nUnknown capability: ${actionId}`,
+      faqResultKeyboard(),
+    );
     return;
   }
 
@@ -194,7 +209,7 @@ async function runFaqAction(
   }
 
   const result = await adapter.execute(actionId);
-  await sendResultAndClose(env, callback, faqActionText(capability, result));
+  await editCallbackMessage(env, callback, faqActionText(capability, result), faqResultKeyboard());
 }
 
 async function handleCallback(
@@ -246,7 +261,12 @@ async function handleCallback(
   }
 
   if (data === "system:status") {
-    await sendResultAndClose(env, callback, await systemStatusText(registry));
+    await editCallbackMessage(
+      env,
+      callback,
+      await systemStatusText(registry),
+      systemResultKeyboard(),
+    );
     return;
   }
 
@@ -294,8 +314,8 @@ export async function handleTelegramWebhook(
   const command = message.text.trim().split(/\s+/, 1)[0]?.split("@", 1)[0];
 
   if (command === "/start" || command === "/menu") {
-    await sendTelegramMessage(
-      env.TELEGRAM_BOT_TOKEN,
+    await sendMenuCard(
+      env,
       message.chat.id,
       "🤖 IANEO\n\nPersonal command center online.",
       mainMenuKeyboard(),
@@ -304,8 +324,8 @@ export async function handleTelegramWebhook(
   }
 
   if (command === "/bots") {
-    await sendTelegramMessage(
-      env.TELEGRAM_BOT_TOKEN,
+    await sendMenuCard(
+      env,
       message.chat.id,
       "🤖 Bots\n\nChoose a connected service.",
       botsMenuKeyboard(registry),
@@ -314,17 +334,17 @@ export async function handleTelegramWebhook(
   }
 
   if (command === "/status") {
-    await sendTelegramMessage(
-      env.TELEGRAM_BOT_TOKEN,
+    await sendMenuCard(
+      env,
       message.chat.id,
       await systemStatusText(registry),
-      systemMenuKeyboard(),
+      systemResultKeyboard(),
     );
     return ok();
   }
 
-  await sendTelegramMessage(
-    env.TELEGRAM_BOT_TOKEN,
+  await sendMenuCard(
+    env,
     message.chat.id,
     "Unknown command. Use /start, /bots, or /status.",
     mainMenuKeyboard(),
