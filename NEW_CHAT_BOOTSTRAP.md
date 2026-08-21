@@ -27,45 +27,45 @@ Manual deployment is recovery-only. Production deploy green is separate from CI 
 - both `/health` paths live-verified
 - Telegram webhook registered
 - owner `/start` live
-- layered Bots menu from PR #4 deployed and user-tested
-- PR #5 menu close behavior merged; production verification pending
+- layered Bots menu deployed and user-tested
+- `✕ Close` + action-completion auto-close implemented/merged
+- authenticated FAQ Operational Summary is live and working
+- matching FAQ/IANEO service secrets are attached to active production versions at 100% traffic after a Cloudflare version mismatch was fixed
 
-## Telegram UX
+## Scalable FAQ control architecture
 
-`IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
+The FAQ bot has many Telegram Owner commands (schema revision 11; Owner 19), but IANEO will **not** implement one endpoint and one Telegram handler per command.
 
-Current target menu:
-- `🤖 Bots`
-  - `🎓 School of Nursing FAQ`
-    - `🩺 Health`
-    - `📊 Operations`
-- `⚙️ System`
-  - `📊 Status`
+FAQ service now has a capability registry:
+- `GET /internal/v1/capabilities`
+- `GET /internal/v1/status` (backwards compatible)
+- `POST /internal/v1/actions/<action-id>`
 
-Every menu layer has `✕ Close`. Navigation edits in place; leaf actions send a result and auto-delete the menu card. No timer/scheduler/storage exists only for menu expiry.
+Current FAQ remote-safe read actions:
+- `operations.status`
+- `monitoring.status`
+- `handoff.status`
+- `admins.summary`
+- `cases.summary`
 
-## FAQ remote control bridge
+Every capability declares safety (`read` / `write` / `sensitive`) and whether confirmation is required.
 
-FAQ main now implements protected read-only:
+Telegram Owner commands and IANEO capabilities are separate interfaces over shared domain functions. Do not forward command strings bot-to-bot. A future remote action is added by registering the underlying domain operation once in the FAQ capability registry.
 
-`GET https://faq.drthorne.uk/internal/v1/status`
+## Active IANEO branch
 
-FAQ Worker secret: `IANEO_SERVICE_TOKEN`.
-IANEO matching secret: `FAQ_SERVICE_TOKEN`.
+`feat/dynamic-faq-capabilities`
 
-The bridge returns aggregate operational state only: environment, monitoring mode, handoff route/configured boolean, users/questions/pending questions, active cases/staff, Sudo Admin count, and human-controlled conversation count. It does not expose Telegram identities, chat IDs, question bodies, or other private records.
+It adds:
+- extended adapter capability metadata (`label`, `requiresConfirmation`);
+- `FaqAdapter.getCapabilities()` authenticated discovery from FAQ;
+- generic `POST /internal/v1/actions/<action-id>` execution;
+- fallback compatibility for the original Operational Summary;
+- FAQ submenu generated from discovered capabilities instead of hard-coded buttons;
+- generic data rendering for read-action results;
+- generic confirmation card path for future write/sensitive capabilities.
 
-Current IANEO branch:
-
-`feat/faq-operations-read`
-
-Implementation includes:
-- `FAQ_SERVICE_TOKEN` Env binding
-- Bearer-authenticated `FaqAdapter` operations fetch
-- `operations` read capability
-- `📊 Operations` FAQ submenu button
-- compact Telegram operational summary
-- local example binding
+Important safety boundary: IANEO confirmation UI does not itself grant authority. The FAQ service currently executes read actions only; target-side authorization/audit remains authoritative when writes are later enabled.
 
 ## Secrets/config boundary
 
@@ -76,10 +76,10 @@ GitHub Actions secrets:
 IANEO Worker secrets:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
-- `FAQ_SERVICE_TOKEN` (new, pending configuration)
+- `FAQ_SERVICE_TOKEN`
 
 FAQ Worker secret:
-- `IANEO_SERVICE_TOKEN` (new, pending configuration)
+- `IANEO_SERVICE_TOKEN`
 
 IANEO plaintext variable:
 - `TELEGRAM_OWNER_ID`
@@ -87,19 +87,31 @@ IANEO plaintext variable:
 Repo-managed:
 - `FAQ_SERVICE_URL = https://faq.drthorne.uk`
 
-The two service-token bindings must contain the same dedicated secret value. Never commit or expose the value in source/docs.
+The two service-token bindings contain the same dedicated credential but use service-specific binding names. Never commit or expose the value.
 
-## Next actions
+## Current validation boundary
 
-1. targeted CI for `feat/faq-operations-read`;
-2. merge if green and verify automatic IANEO deployment;
-3. configure matching service-token secret on both Cloudflare Workers;
-4. verify FAQ endpoint blocks missing/wrong bearer and accepts correct bearer;
-5. live-test `/start -> Bots -> School of Nursing FAQ -> Operations`;
-6. verify manual `✕ Close` and leaf-action auto-close;
-7. reconcile docs from live evidence;
-8. only then design later write/sensitive FAQ controls with confirmation.
+FAQ:
+1. capability-registry production workflow green;
+2. authenticated capabilities manifest returns five reads;
+3. generic read dispatch works and unknown actions fail closed;
+4. existing Telegram/health/scheduled behavior unchanged.
+
+IANEO:
+1. targeted CI on `feat/dynamic-faq-capabilities`;
+2. PR merge only if green;
+3. automatic production deploy verification;
+4. Telegram FAQ submenu dynamically shows Health plus discovered FAQ reads;
+5. Operational Summary still works;
+6. Monitoring Status, Handoff Status, Admin Summary, Cases Summary work;
+7. Close/auto-close behavior remains correct.
+
+## Next control expansion
+
+After this slice is live, add selected bounded write actions into the same FAQ registry. Best first candidates are monitoring-mode and handoff-route changes because existing domain functions already encapsulate them.
+
+Sensitive Owner functions (Sudo role changes, AI credentials/config, message clearing, destructive actions) remain deferred until explicit confirmation plus target-side audit/authorization semantics are implemented.
 
 ## One-line handoff
 
-Current truth: IANEO is live with layered Bots navigation; menu-close UX is merged; FAQ now has a minimal dedicated-token read-only `/internal/v1/status` bridge; IANEO branch `feat/faq-operations-read` is wiring that bridge into the FAQ submenu, pending CI, deployment, matching Cloudflare secrets, and live verification.
+Current truth: IANEO and FAQ are live and authenticated; FAQ Operational Summary works; the active slice replaces hard-coded FAQ controls with capability discovery + generic action dispatch, so future Owner-control expansion does not require one bespoke endpoint/IANEO handler per Telegram command.
