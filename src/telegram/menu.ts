@@ -48,6 +48,16 @@ export function faqMenuKeyboard(capabilities: Capability[]): TelegramInlineKeybo
   return { inline_keyboard: rows };
 }
 
+export function faqActionConfirmationKeyboard(actionId: string): TelegramInlineKeyboard {
+  return {
+    inline_keyboard: [
+      [{ text: "✅ Confirm", callback_data: `bot:faq:confirm:${actionId}` }],
+      [{ text: "⬅️ Cancel", callback_data: "bot:faq" }],
+      closeRow,
+    ],
+  };
+}
+
 export function systemMenuKeyboard(): TelegramInlineKeyboard {
   return {
     inline_keyboard: [
