@@ -1,4 +1,5 @@
 import type { AdapterRegistry } from "../core/adapter-registry";
+import type { Capability } from "../core/types";
 import type { TelegramInlineKeyboard } from "./client";
 
 const BOT_LABELS: Record<string, string> = {
@@ -27,15 +28,24 @@ export function botsMenuKeyboard(registry: AdapterRegistry): TelegramInlineKeybo
   return { inline_keyboard: rows };
 }
 
-export function faqMenuKeyboard(): TelegramInlineKeyboard {
-  return {
-    inline_keyboard: [
-      [{ text: "🩺 Health", callback_data: "bot:faq:health" }],
-      [{ text: "📊 Operations", callback_data: "bot:faq:operations" }],
-      [{ text: "⬅️ Bots", callback_data: "menu:bots" }],
-      closeRow,
-    ],
-  };
+function capabilityLabel(capability: Capability): string {
+  const prefix = capability.safety === "sensitive"
+    ? "🔐"
+    : capability.safety === "write"
+      ? "✏️"
+      : "📖";
+  return `${prefix} ${capability.label ?? capability.id}`;
+}
+
+export function faqMenuKeyboard(capabilities: Capability[]): TelegramInlineKeyboard {
+  const rows = capabilities.map((capability) => [{
+    text: capabilityLabel(capability),
+    callback_data: `bot:faq:action:${capability.id}`,
+  }]);
+
+  rows.push([{ text: "⬅️ Bots", callback_data: "menu:bots" }]);
+  rows.push(closeRow);
+  return { inline_keyboard: rows };
 }
 
 export function systemMenuKeyboard(): TelegramInlineKeyboard {
