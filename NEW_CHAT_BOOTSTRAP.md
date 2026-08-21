@@ -3,7 +3,6 @@
 Fresh-session continuity checkpoint for `Ye-Shwethway/ianeo-orchestrator`.
 
 ## Mandatory reconciliation order
-
 1. `AGENTS.md`
 2. `NEW_CHAT_BOOTSTRAP.md`
 3. `ROADMAP.md`
@@ -13,98 +12,94 @@ Verified runtime evidence wins over repository narrative; repository state wins 
 
 ## Permanent rules
 
-`ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` must be updated after every meaningful implementation/integration/deployment/operational change.
+Continuity docs update after every meaningful implementation/integration/deployment/operational change.
 
 Normal production delivery:
 
 `branch -> PR -> targeted CI green -> merge main -> automatic Deploy Production -> Wrangler -> Cloudflare`
 
-Manual deployment is recovery-only. Check production deploy separately from CI.
+Manual deployment is recovery-only. Production deploy green is separate from CI green.
 
 ## Current live platform state — 2026-08-21
 
-- IANEO Worker: `ianeo-orchestrator`
-- canonical URL: `https://ianeo.drthorne.uk`
-- IANEO `/health` live-verified HTTP 200 with `faq` adapter present
-- production workers.dev `/health` also live
-- FAQ canonical URL: `https://faq.drthorne.uk`
-- FAQ production `/health` live-verified
-- Telegram runtime values configured
+- IANEO: `https://ianeo.drthorne.uk`
+- FAQ: `https://faq.drthorne.uk`
+- both `/health` paths live-verified
 - Telegram webhook registered
-- owner `/start` works
-- PR #4 layered Bots menu deployed and user-tested successfully
-- main-merge automatic production deployment is the required normal path
+- owner `/start` live
+- layered Bots menu from PR #4 deployed and user-tested
+- PR #5 menu close behavior merged; production verification pending
 
-## Current Telegram UX
-
-Canonical hierarchy:
+## Telegram UX
 
 `IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
 
-Current menu:
-
+Current target menu:
 - `🤖 Bots`
   - `🎓 School of Nursing FAQ`
     - `🩺 Health`
+    - `📊 Operations`
 - `⚙️ System`
   - `📊 Status`
 
-The Bots list is adapter-driven so future services can be added without crowding the root menu.
+Every menu layer has `✕ Close`. Navigation edits in place; leaf actions send a result and auto-delete the menu card. No timer/scheduler/storage exists only for menu expiry.
 
-Current follow-up branch:
+## FAQ remote control bridge
 
-`feat/menu-close-and-faq-bridge`
+FAQ main now implements protected read-only:
 
-It adds:
+`GET https://faq.drthorne.uk/internal/v1/status`
 
-- `✕ Close` to every menu layer;
-- Telegram `deleteMessage` helper;
-- manual menu-card deletion;
-- action-completion auto-close: leaf actions send their result and delete the menu card;
-- no timer/scheduler/DB is introduced just to expire menus.
+FAQ Worker secret: `IANEO_SERVICE_TOKEN`.
+IANEO matching secret: `FAQ_SERVICE_TOKEN`.
 
-## FAQ control reconnaissance
+The bridge returns aggregate operational state only: environment, monitoring mode, handoff route/configured boolean, users/questions/pending questions, active cases/staff, Sudo Admin count, and human-controlled conversation count. It does not expose Telegram identities, chat IDs, question bodies, or other private records.
 
-The School of Nursing FAQ repository already has substantial Telegram-native owner/admin logic including `/admin`, `/admins`, `/sudo`, monitoring, handoff and AI-related controls.
+Current IANEO branch:
 
-Those are internal Telegram/runtime paths, not a remote HTTP control API. IANEO must never emulate control by sending Telegram commands to the FAQ bot.
+`feat/faq-operations-read`
 
-After the close-UX slice is live, create the smallest authenticated FAQ remote bridge under `/internal/v1/...`, using a dedicated per-service credential. Start read-only with operational summaries such as runtime/admin, monitoring, handoff and basic stats. Sensitive role-changing/destructive actions require a later confirmation-enabled slice.
+Implementation includes:
+- `FAQ_SERVICE_TOKEN` Env binding
+- Bearer-authenticated `FaqAdapter` operations fetch
+- `operations` read capability
+- `📊 Operations` FAQ submenu button
+- compact Telegram operational summary
+- local example binding
 
 ## Secrets/config boundary
 
-GitHub Actions deployment secrets:
-
+GitHub Actions secrets:
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-IANEO Cloudflare runtime secrets:
-
+IANEO Worker secrets:
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
-- future `FAQ_SERVICE_TOKEN`
+- `FAQ_SERVICE_TOKEN` (new, pending configuration)
+
+FAQ Worker secret:
+- `IANEO_SERVICE_TOKEN` (new, pending configuration)
 
 IANEO plaintext variable:
-
 - `TELEGRAM_OWNER_ID`
 
-Repo-managed variable:
-
+Repo-managed:
 - `FAQ_SERVICE_URL = https://faq.drthorne.uk`
 
-Never commit real secret values.
+The two service-token bindings must contain the same dedicated secret value. Never commit or expose the value in source/docs.
 
 ## Next actions
 
-1. targeted CI on `feat/menu-close-and-faq-bridge`;
-2. merge if green;
-3. verify automatic Deploy Production succeeds;
-4. live-test `✕ Close` and action-completion auto-close;
-5. then implement the minimum authenticated FAQ `/internal/v1/...` bridge;
-6. configure the dedicated FAQ service token on both Workers without exposing it in source/chat;
-7. extend `FaqAdapter` and FAQ submenu with the first proven read-only operational controls;
-8. reconcile continuity docs from live evidence.
+1. targeted CI for `feat/faq-operations-read`;
+2. merge if green and verify automatic IANEO deployment;
+3. configure matching service-token secret on both Cloudflare Workers;
+4. verify FAQ endpoint blocks missing/wrong bearer and accepts correct bearer;
+5. live-test `/start -> Bots -> School of Nursing FAQ -> Operations`;
+6. verify manual `✕ Close` and leaf-action auto-close;
+7. reconcile docs from live evidence;
+8. only then design later write/sensitive FAQ controls with confirmation.
 
 ## One-line handoff
 
-Current truth: IANEO is live at `ianeo.drthorne.uk`; layered Bots navigation is deployed and user-tested; the current branch adds stateless manual/action-completion menu closing, and the next integration step is a dedicated-token authenticated FAQ remote control bridge starting with read-only operations.
+Current truth: IANEO is live with layered Bots navigation; menu-close UX is merged; FAQ now has a minimal dedicated-token read-only `/internal/v1/status` bridge; IANEO branch `feat/faq-operations-read` is wiring that bridge into the FAQ submenu, pending CI, deployment, matching Cloudflare secrets, and live verification.
