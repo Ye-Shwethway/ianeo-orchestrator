@@ -1,5 +1,6 @@
 import type {
   Capability,
+  CapabilityInput,
   ExecutionResult,
   HealthResult,
   ServiceAdapter,
@@ -18,6 +19,7 @@ type RemoteCapabilityPayload = {
   description?: string;
   safety?: "read" | "write" | "sensitive";
   requiresConfirmation?: boolean;
+  input?: CapabilityInput;
 };
 
 type RemoteCapabilitiesResponse = {
@@ -32,6 +34,18 @@ type RemoteActionResponse = {
   data?: unknown;
   error?: string;
 };
+
+function validChoiceInput(input: unknown): input is CapabilityInput {
+  if (!input || typeof input !== "object") return false;
+  const candidate = input as CapabilityInput;
+  return typeof candidate.name === "string" &&
+    typeof candidate.label === "string" &&
+    candidate.type === "choice" &&
+    Array.isArray(candidate.choices) &&
+    candidate.choices.every((choice) =>
+      typeof choice?.value === "string" && typeof choice?.label === "string"
+    );
+}
 
 export class FaqAdapter implements ServiceAdapter {
   readonly id = "faq";
@@ -81,6 +95,7 @@ export class FaqAdapter implements ServiceAdapter {
           description: remote.description,
           safety: remote.safety,
           requiresConfirmation: remote.requiresConfirmation === true,
+          ...(validChoiceInput(remote.input) ? { input: remote.input } : {}),
         });
       }
       return capabilities;
@@ -126,10 +141,17 @@ export class FaqAdapter implements ServiceAdapter {
     }
   }
 
-  private async remoteAction(action: string): Promise<ExecutionResult> {
+  private async remoteAction(
+    action: string,
+    params?: Record<string, unknown>,
+  ): Promise<ExecutionResult> {
     if (!this.serviceToken) {
       return { ok: false, message: "FAQ operations credential is not configured" };
     }
+
+    const confirmed = params?.__confirmed === true;
+    const actionParams = { ...(params ?? {}) };
+    delete actionParams.__confirmed;
 
     try {
       const response = await fetch(
@@ -140,14 +162,16 @@ export class FaqAdapter implements ServiceAdapter {
             ...this.authHeaders(),
             "content-type": "application/json",
           },
-          body: "{}",
+          body: JSON.stringify({ confirmed, params: actionParams }),
         },
       );
       const payload = (await response.json().catch(() => null)) as RemoteActionResponse | null;
       if (!response.ok || payload?.ok !== true) {
         return {
           ok: false,
-          message: `FAQ action ${action} returned HTTP ${response.status}`,
+          message: payload?.error
+            ? `FAQ action blocked: ${payload.error}`
+            : `FAQ action ${action} returned HTTP ${response.status}`,
           data: payload ?? undefined,
         };
       }
@@ -170,7 +194,10 @@ export class FaqAdapter implements ServiceAdapter {
     };
   }
 
-  async execute(action: string): Promise<ExecutionResult> {
+  async execute(
+    action: string,
+    params?: Record<string, unknown>,
+  ): Promise<ExecutionResult> {
     if (action === "health") {
       const health = await this.health();
       return {
@@ -182,6 +209,6 @@ export class FaqAdapter implements ServiceAdapter {
 
     // Backwards compatibility with the first static Operations button.
     if (action === "operations") action = "operations.status";
-    return this.remoteAction(action);
+    return this.remoteAction(action, params);
   }
 }

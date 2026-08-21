@@ -26,17 +26,17 @@ Hierarchy:
 
 `IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
 
-The Bots layer is adapter-driven. A service-specific submenu should be capability-driven whenever the target service exposes a manifest.
+The Bots layer is adapter-driven and service submenus are capability-driven where a manifest exists.
 
 Menu-card contract:
 - navigation edits the same card in place;
 - every menu/result layer has `✕ Close`;
-- leaf results stay open as the same card and expose `⬅️ Back` + `✕ Close`;
-- menu/result cards auto-delete after about 5 minutes of inactivity;
-- every navigation/action interaction resets that 5-minute inactivity window;
-- manual Close cancels the scheduled cleanup and deletes immediately.
+- leaf results stay open and expose `⬅️ Back` + `✕ Close`;
+- cards auto-delete after about 5 minutes of inactivity;
+- every interaction resets the inactivity window;
+- manual Close deletes immediately and cancels scheduled cleanup.
 
-Reliable 5-minute cleanup uses one minimal `MenuCleanup` Durable Object class with alarms. `waitUntil()` is not used for the timer because Cloudflare only extends post-response execution for about 30 seconds.
+Five-minute cleanup uses one minimal `MenuCleanup` Durable Object alarm class because post-response `waitUntil()` cannot reliably hold a five-minute timer.
 
 ## Production foundation
 
@@ -45,58 +45,70 @@ Completed:
 - [x] direct HTTPS adapter model
 - [x] FAQ health path
 - [x] `ianeo.drthorne.uk` + `faq.drthorne.uk`
-- [x] runtime secrets/config
 - [x] Node 22 CI/deploy
 - [x] main merge auto-deploy rule
-- [x] layered Bots menu deployed and user-tested
-- [x] authenticated FAQ Operational Summary live-tested
-- [x] FAQ/IANEO service secrets attached to active production versions after Cloudflare version mismatch repair
-- [x] capability-driven FAQ control discovery and generic read dispatch merged
+- [x] layered Bots menu live
+- [x] authenticated FAQ Operational Summary live
+- [x] capability-driven FAQ read controls live through `cases.summary`
+- [x] PR #8 result Back/Close + five-minute inactivity cleanup merged after green CI
 
 ## FAQ capability-control architecture
 
 FAQ exposes:
 - `GET /internal/v1/capabilities`
-- `GET /internal/v1/status` for backwards compatibility
+- `GET /internal/v1/status`
 - `POST /internal/v1/actions/<action-id>`
 
-Current FAQ read capabilities:
+Current reads:
 - `operations.status`
 - `monitoring.status`
 - `handoff.status`
 - `admins.summary`
 - `cases.summary`
 
-Each remote capability carries id, label/description, safety (`read`, `write`, `sensitive`) and confirmation metadata. IANEO builds the FAQ submenu from this manifest instead of hard-coded command wrappers.
+Current bounded writes exposed by FAQ:
+- `monitoring.set`
+- `handoff.set`
 
-Telegram Owner commands and remote capabilities remain separate interfaces over shared domain functions. No Telegram bot-to-bot command forwarding.
+Capability metadata supports:
+- id / label / description
+- safety: `read`, `write`, `sensitive`
+- confirmation requirement
+- optional reusable `choice` input: name, label, choices
 
-## Active UX slice — result navigation + inactivity TTL
+IANEO does not implement one UI handler per FAQ Owner command. Generic choice-input rendering and generic action dispatch are the scalable path. Telegram commands and remote capabilities remain separate interfaces over shared domain functions.
 
-Branch: `feat/menu-result-back-ttl`
+## Active slice — generic choice writes
+
+Branch: `feat/generic-choice-writes`
 
 Implemented:
-- [x] FAQ action results remain in the current card
-- [x] System Status result remains in the current card
-- [x] result cards expose `⬅️ Back` + `✕ Close`
-- [x] reusable 5-minute inactivity cleanup scheduler
-- [x] `MenuCleanup` Durable Object alarm resets on card interaction
-- [x] `/start`, `/menu`, `/bots`, `/status` cards schedule cleanup from creation
-- [x] manual Close cancels cleanup
-- [x] Wrangler Durable Object binding + first migration
+- [x] generic `CapabilityInput` / `CapabilityChoice` metadata
+- [x] FAQ adapter imports remote choice metadata
+- [x] generic choice picker card
+- [x] generic selected-value confirmation card
+- [x] generic params + explicit confirmation POST to FAQ
+- [x] result returns to standard Back + Close card
+- [x] five-minute inactivity timer continues/reset through choice and confirmation steps
+- [x] Wrangler declares required Worker secrets so future deploys fail clearly if critical secrets are absent rather than silently publishing an unusable version
+
+First write flows:
+- Monitoring mode: All alerts / Silent all / Alerts only / Off
+- Handoff route: Auto / Staff Inbox group / Dedicated staff
+
+Target FAQ Worker remains authoritative for validation and persistence. Handoff group/dedicated choices fail closed when their destination is not configured.
 
 Pending:
 - [ ] targeted CI
 - [ ] merge only if green
-- [ ] automatic Deploy Production verification
-- [ ] live Telegram Back/Close verification
-- [ ] live 5-minute inactivity auto-delete verification
+- [ ] automatic production deploy verification
+- [ ] live monitoring mode change + restore
+- [ ] live handoff route change + restore
+- [ ] verify read actions and Back/Close/TTL remain intact
 
-## Next control expansion
+## Sensitive-control boundary
 
-After the UX slice is live, continue adding bounded write actions through the same capability registry. Best first write candidates remain monitoring mode and handoff route because their FAQ domain functions already exist and are bounded.
-
-Sensitive role-changing/destructive actions such as Sudo changes, AI credential/config changes and message clearing require explicit confirmation plus target-side authorization/audit semantics before registration.
+Sudo role changes, AI credential/config changes, message clearing and other destructive/privileged actions remain deferred. They require stronger target-side audit semantics and explicit confirmation before registry exposure.
 
 ## Deferred integrations
 

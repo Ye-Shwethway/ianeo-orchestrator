@@ -11,6 +11,7 @@ import { cancelMenuCleanup, scheduleMenuCleanup } from "./menu-cleanup";
 import {
   botsMenuKeyboard,
   faqActionConfirmationKeyboard,
+  faqChoiceKeyboard,
   faqMenuKeyboard,
   faqResultKeyboard,
   mainMenuKeyboard,
@@ -143,6 +144,14 @@ async function faqCapabilities(registry: AdapterRegistry): Promise<Capability[]>
   }
 }
 
+async function faqCapability(
+  registry: AdapterRegistry,
+  actionId: string,
+): Promise<Capability | null> {
+  const capabilities = await faqCapabilities(registry);
+  return capabilities.find((item) => item.id === actionId) ?? null;
+}
+
 async function openFaqMenu(
   env: Env,
   registry: AdapterRegistry,
@@ -162,12 +171,20 @@ async function openFaqMenu(
   );
 }
 
+function selectedChoiceLabel(capability: Capability, params: Record<string, unknown>): string | null {
+  if (!capability.input) return null;
+  const selected = params[capability.input.name];
+  if (typeof selected !== "string") return null;
+  return capability.input.choices.find((choice) => choice.value === selected)?.label ?? selected;
+}
+
 async function runFaqAction(
   env: Env,
   registry: AdapterRegistry,
   callback: TelegramCallbackQuery,
   actionId: string,
   confirmed: boolean,
+  params: Record<string, unknown> = {},
 ): Promise<void> {
   const adapter = registry.get("faq");
   if (!adapter) {
@@ -180,8 +197,7 @@ async function runFaqAction(
     return;
   }
 
-  const capabilities = await adapter.getCapabilities();
-  const capability = capabilities.find((item) => item.id === actionId);
+  const capability = await faqCapability(registry, actionId);
   if (!capability) {
     await editCallbackMessage(
       env,
@@ -192,7 +208,26 @@ async function runFaqAction(
     return;
   }
 
+  if (capability.input && params[capability.input.name] === undefined) {
+    await editCallbackMessage(
+      env,
+      callback,
+      [
+        `✏️ ${capability.label ?? capability.id}`,
+        "",
+        capability.description,
+        `Choose ${capability.input.label.toLowerCase()}.`,
+      ].join("\n"),
+      faqChoiceKeyboard(capability),
+    );
+    return;
+  }
+
+  const selectedLabel = selectedChoiceLabel(capability, params);
   if (!confirmed && (capability.requiresConfirmation || capability.safety !== "read")) {
+    const selectedValue = capability.input
+      ? String(params[capability.input.name] ?? "")
+      : undefined;
     await editCallbackMessage(
       env,
       callback,
@@ -201,14 +236,16 @@ async function runFaqAction(
         "",
         capability.label ?? capability.id,
         capability.description,
+        selectedLabel && capability.input ? `${capability.input.label}: ${selectedLabel}` : null,
         `Safety: ${capability.safety}`,
-      ].join("\n"),
-      faqActionConfirmationKeyboard(actionId),
+      ].filter(Boolean).join("\n"),
+      faqActionConfirmationKeyboard(actionId, selectedValue),
     );
     return;
   }
 
-  const result = await adapter.execute(actionId);
+  const executionParams = confirmed ? { ...params, __confirmed: true } : params;
+  const result = await adapter.execute(actionId, executionParams);
   await editCallbackMessage(env, callback, faqActionText(capability, result), faqResultKeyboard());
 }
 
@@ -281,9 +318,38 @@ async function handleCallback(
     return;
   }
 
-  const confirmMatch = data.match(/^bot:faq:confirm:([a-z0-9._-]+)$/);
+  const chooseMatch = data.match(/^bot:faq:choose:([a-z0-9._-]+):(.+)$/);
+  if (chooseMatch) {
+    const actionId = chooseMatch[1];
+    const capability = await faqCapability(registry, actionId);
+    if (!capability?.input) return;
+    const value = decodeURIComponent(chooseMatch[2]);
+    if (!capability.input.choices.some((choice) => choice.value === value)) return;
+    await runFaqAction(
+      env,
+      registry,
+      callback,
+      actionId,
+      false,
+      { [capability.input.name]: value },
+    );
+    return;
+  }
+
+  const confirmMatch = data.match(/^bot:faq:confirm:([a-z0-9._-]+)(?::(.+))?$/);
   if (confirmMatch) {
-    await runFaqAction(env, registry, callback, confirmMatch[1], true);
+    const actionId = confirmMatch[1];
+    const capability = await faqCapability(registry, actionId);
+    if (!capability) return;
+
+    const params: Record<string, unknown> = {};
+    if (capability.input) {
+      if (!confirmMatch[2]) return;
+      const value = decodeURIComponent(confirmMatch[2]);
+      if (!capability.input.choices.some((choice) => choice.value === value)) return;
+      params[capability.input.name] = value;
+    }
+    await runFaqAction(env, registry, callback, actionId, true, params);
   }
 }
 

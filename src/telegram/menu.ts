@@ -48,6 +48,16 @@ export function faqMenuKeyboard(capabilities: Capability[]): TelegramInlineKeybo
   return { inline_keyboard: rows };
 }
 
+export function faqChoiceKeyboard(capability: Capability): TelegramInlineKeyboard {
+  const rows = (capability.input?.choices ?? []).map((choice) => [{
+    text: choice.label,
+    callback_data: `bot:faq:choose:${capability.id}:${encodeURIComponent(choice.value)}`,
+  }]);
+  rows.push([{ text: "⬅️ Back", callback_data: "bot:faq" }]);
+  rows.push(closeRow);
+  return { inline_keyboard: rows };
+}
+
 export function faqResultKeyboard(): TelegramInlineKeyboard {
   return {
     inline_keyboard: [
@@ -57,10 +67,14 @@ export function faqResultKeyboard(): TelegramInlineKeyboard {
   };
 }
 
-export function faqActionConfirmationKeyboard(actionId: string): TelegramInlineKeyboard {
+export function faqActionConfirmationKeyboard(
+  actionId: string,
+  selectedValue?: string,
+): TelegramInlineKeyboard {
+  const suffix = selectedValue === undefined ? "" : `:${encodeURIComponent(selectedValue)}`;
   return {
     inline_keyboard: [
-      [{ text: "✅ Confirm", callback_data: `bot:faq:confirm:${actionId}` }],
+      [{ text: "✅ Confirm", callback_data: `bot:faq:confirm:${actionId}${suffix}` }],
       [{ text: "⬅️ Cancel", callback_data: "bot:faq" }],
       closeRow,
     ],
