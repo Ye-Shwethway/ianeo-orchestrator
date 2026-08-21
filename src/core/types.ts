@@ -1,9 +1,22 @@
+export interface CapabilityChoice {
+  value: string;
+  label: string;
+}
+
+export interface CapabilityInput {
+  name: string;
+  label: string;
+  type: "choice";
+  choices: CapabilityChoice[];
+}
+
 export interface Capability {
   id: string;
   description: string;
   safety: "read" | "write" | "sensitive";
   label?: string;
   requiresConfirmation?: boolean;
+  input?: CapabilityInput;
 }
 
 export interface HealthResult {
