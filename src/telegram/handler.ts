@@ -67,6 +67,12 @@ async function editCallbackMessage(
   );
 }
 
+function executionEnvironment(data: unknown): string | null {
+  if (!data || typeof data !== "object") return null;
+  const environment = (data as Record<string, unknown>).environment;
+  return typeof environment === "string" ? environment : null;
+}
+
 async function handleCallback(
   env: Env,
   registry: AdapterRegistry,
@@ -143,7 +149,7 @@ async function handleCallback(
     }
 
     const result = await adapter.execute("health");
-    const environment = result.data?.environment;
+    const environment = executionEnvironment(result.data);
     await editCallbackMessage(
       env,
       callback,
@@ -151,14 +157,11 @@ async function handleCallback(
         `${result.ok ? "🟢" : "🔴"} School of Nursing FAQ`,
         "",
         result.message,
-        environment ? `Environment: ${String(environment)}` : null,
+        environment ? `Environment: ${environment}` : null,
       ].filter(Boolean).join("\n"),
       faqMenuKeyboard(),
     );
-    return;
   }
-
-  await answerTelegramCallback(env.TELEGRAM_BOT_TOKEN, callback.id, "Unknown action");
 }
 
 export async function handleTelegramWebhook(
