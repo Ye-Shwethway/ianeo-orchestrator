@@ -20,98 +20,74 @@ Normal production delivery:
 
 Manual deployment is recovery-only. Production deploy green is separate from CI green.
 
-## Current live platform state — 2026-08-21
+## Current live state — 2026-08-21
 
 - IANEO: `https://ianeo.drthorne.uk`
 - FAQ: `https://faq.drthorne.uk`
-- both `/health` paths live-verified
-- Telegram webhook registered
-- owner `/start` live
-- layered Bots menu deployed and user-tested
-- `✕ Close` + action-completion auto-close implemented/merged
-- authenticated FAQ Operational Summary is live and working
-- matching FAQ/IANEO service secrets are attached to active production versions at 100% traffic after a Cloudflare version mismatch was fixed
+- Telegram webhook live
+- layered Bots navigation live
+- FAQ capability discovery + generic read actions live-tested through `cases.summary`
+- user confirmed all current FAQ read capabilities work through IANEO
+- matching service secrets are active on both Workers
 
 ## Scalable FAQ control architecture
 
-The FAQ bot has many Telegram Owner commands (schema revision 11; Owner 19), but IANEO will **not** implement one endpoint and one Telegram handler per command.
-
-FAQ service now has a capability registry:
+FAQ exposes:
 - `GET /internal/v1/capabilities`
-- `GET /internal/v1/status` (backwards compatible)
+- `GET /internal/v1/status`
 - `POST /internal/v1/actions/<action-id>`
 
-Current FAQ remote-safe read actions:
+Current read capabilities:
 - `operations.status`
 - `monitoring.status`
 - `handoff.status`
 - `admins.summary`
 - `cases.summary`
 
-Every capability declares safety (`read` / `write` / `sensitive`) and whether confirmation is required.
+IANEO discovers this manifest dynamically. New remote-safe FAQ capabilities should normally require only a target-side registry/domain entry, not a bespoke HTTP endpoint + adapter method + Telegram callback for each Owner command.
 
-Telegram Owner commands and IANEO capabilities are separate interfaces over shared domain functions. Do not forward command strings bot-to-bot. A future remote action is added by registering the underlying domain operation once in the FAQ capability registry.
+## Active UX correction
 
-## Active IANEO branch
+User reported the current leaf-action behavior closes the menu immediately after showing a result. Required behavior is now locked as:
 
-`feat/dynamic-faq-capabilities`
+1. action result edits the same menu card;
+2. result view keeps `⬅️ Back` and `✕ Close`;
+3. Back returns to the relevant menu;
+4. Close deletes immediately;
+5. menu/result card auto-deletes after about **5 minutes of inactivity**;
+6. any navigation/action resets the inactivity timer.
 
-It adds:
-- extended adapter capability metadata (`label`, `requiresConfirmation`);
-- `FaqAdapter.getCapabilities()` authenticated discovery from FAQ;
-- generic `POST /internal/v1/actions/<action-id>` execution;
-- fallback compatibility for the original Operational Summary;
-- FAQ submenu generated from discovered capabilities instead of hard-coded buttons;
-- generic data rendering for read-action results;
-- generic confirmation card path for future write/sensitive capabilities.
+Branch: `feat/menu-result-back-ttl`
 
-Important safety boundary: IANEO confirmation UI does not itself grant authority. The FAQ service currently executes read actions only; target-side authorization/audit remains authoritative when writes are later enabled.
+Implementation uses a minimal `MenuCleanup` Durable Object alarm because Cloudflare `waitUntil()` cannot reliably hold a five-minute post-response timer. No D1/KV/Queue was added.
 
-## Secrets/config boundary
+Changed implementation:
+- `src/telegram/menu-cleanup.ts` — per-card alarm scheduling/cancel
+- `src/telegram/client.ts` — returns sent message ID for initial TTL scheduling
+- `src/telegram/menu.ts` — FAQ/System result keyboards with Back + Close
+- `src/telegram/handler.ts` — edit-in-place results and TTL reset on interaction
+- `src/config/env.ts` — `MENU_CLEANUP` binding
+- `src/index.ts` — exports Durable Object class
+- `wrangler.toml` — Durable Object binding + first migration
 
-GitHub Actions secrets:
-- `CLOUDFLARE_API_TOKEN`
-- `CLOUDFLARE_ACCOUNT_ID`
+## Validation boundary
 
-IANEO Worker secrets:
-- `TELEGRAM_BOT_TOKEN`
-- `TELEGRAM_WEBHOOK_SECRET`
-- `FAQ_SERVICE_TOKEN`
+Before merge:
+- targeted TypeScript CI must pass.
 
-FAQ Worker secret:
-- `IANEO_SERVICE_TOKEN`
-
-IANEO plaintext variable:
-- `TELEGRAM_OWNER_ID`
-
-Repo-managed:
-- `FAQ_SERVICE_URL = https://faq.drthorne.uk`
-
-The two service-token bindings contain the same dedicated credential but use service-specific binding names. Never commit or expose the value.
-
-## Current validation boundary
-
-FAQ:
-1. capability-registry production workflow green;
-2. authenticated capabilities manifest returns five reads;
-3. generic read dispatch works and unknown actions fail closed;
-4. existing Telegram/health/scheduled behavior unchanged.
-
-IANEO:
-1. targeted CI on `feat/dynamic-faq-capabilities`;
-2. PR merge only if green;
-3. automatic production deploy verification;
-4. Telegram FAQ submenu dynamically shows Health plus discovered FAQ reads;
-5. Operational Summary still works;
-6. Monitoring Status, Handoff Status, Admin Summary, Cases Summary work;
-7. Close/auto-close behavior remains correct.
+After merge:
+- automatic Deploy Production must succeed without manual deploy;
+- `/start` card must stay usable;
+- FAQ read result must stay visible with Back + Close;
+- Back must restore FAQ capability menu;
+- manual Close must delete immediately;
+- untouched card must auto-delete after roughly five minutes;
+- interacting before expiry must reset the five-minute window.
 
 ## Next control expansion
 
-After this slice is live, add selected bounded write actions into the same FAQ registry. Best first candidates are monitoring-mode and handoff-route changes because existing domain functions already encapsulate them.
-
-Sensitive Owner functions (Sudo role changes, AI credentials/config, message clearing, destructive actions) remain deferred until explicit confirmation plus target-side audit/authorization semantics are implemented.
+Once this UX correction is live-accepted, continue bounded write controls through the same dynamic capability registry. First candidates: monitoring mode and handoff route. Sensitive Owner functions remain deferred until target-side authorization/audit plus explicit confirmation are verified.
 
 ## One-line handoff
 
-Current truth: IANEO and FAQ are live and authenticated; FAQ Operational Summary works; the active slice replaces hard-coded FAQ controls with capability discovery + generic action dispatch, so future Owner-control expansion does not require one bespoke endpoint/IANEO handler per Telegram command.
+Current truth: FAQ dynamic read controls are live and working through IANEO; the active slice corrects result navigation so cards remain open with Back/Close and adds reliable five-minute inactivity auto-close using one minimal Durable Object alarm class.
