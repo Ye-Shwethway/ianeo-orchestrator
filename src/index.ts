@@ -8,7 +8,7 @@ function buildRegistry(env: Env): AdapterRegistry {
   const adapters: ServiceAdapter[] = [];
 
   if (env.FAQ_SERVICE_URL) {
-    adapters.push(new FaqAdapter(env.FAQ_SERVICE_URL));
+    adapters.push(new FaqAdapter(env.FAQ_SERVICE_URL, env.FAQ_SERVICE_TOKEN));
   }
 
   return new AdapterRegistry(adapters);
