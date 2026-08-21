@@ -15,7 +15,7 @@ Verified runtime evidence wins over repository narrative; repository state wins 
 
 `ROADMAP.md` and `NEW_CHAT_BOOTSTRAP.md` must be updated after every meaningful implementation/integration/deployment/operational change.
 
-Normal production delivery is:
+Normal production delivery:
 
 `branch -> PR -> targeted CI green -> merge main -> automatic Deploy Production -> Wrangler -> Cloudflare`
 
@@ -23,92 +23,68 @@ Manual deployment is recovery-only. Check production deploy separately from CI.
 
 ## Current live platform state — 2026-08-21
 
-Cloudflare-side verified/reported state:
-
 - IANEO Worker: `ianeo-orchestrator`
-- canonical public URL: `https://ianeo.drthorne.uk`
-- `GET https://ianeo.drthorne.uk/health` -> HTTP 200, `ok: true`, service `ianeo-orchestrator`, version `0.1.0`, adapters includes `faq`
-- production workers.dev `/health` also returns HTTP 200
-- production and preview workers.dev exposure remain enabled
+- canonical URL: `https://ianeo.drthorne.uk`
+- IANEO `/health` live-verified HTTP 200 with `faq` adapter present
+- production workers.dev `/health` also live
 - FAQ canonical URL: `https://faq.drthorne.uk`
-- FAQ `/health` was live-verified production healthy
-- Telegram runtime values are configured in Cloudflare
-- Telegram webhook has been registered by the user
-- owner `/start` has been live-verified and returns the IANEO welcome response
-- owner `/status` FAQ-through-IANEO live verification is still pending
+- FAQ production `/health` live-verified
+- Telegram runtime values configured
+- Telegram webhook registered
+- owner `/start` works
+- PR #4 layered Bots menu deployed and user-tested successfully
+- main-merge automatic production deployment is the required normal path
 
-## Current repository state
+## Current Telegram UX
 
-Merged:
-
-- PR #1 — v0.1 foundation
-- PR #2 — Node 22 Wrangler deployment hotfix
-- PR #3 — live deployment checkpoint + permanent auto-deploy rule
-
-Current development branch:
-
-`feat/bots-menu-foundation`
-
-## Current implementation on main
-
-- owner-only Telegram webhook
-- `/start`
-- `/status`
-- adapter registry/contract
-- `FaqAdapter`
-- direct HTTPS FAQ health
-- `workers_dev = true`
-- `keep_vars = true`
-- `FAQ_SERVICE_URL = https://faq.drthorne.uk`
-- GitHub Actions CI + automatic main-branch production deployment using Node 22
-
-## Active slice — layered Bots menu
-
-User explicitly requires a dedicated bot-list layer because IANEO will integrate multiple bots/services.
-
-Canonical Telegram hierarchy:
+Canonical hierarchy:
 
 `IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
 
-A separate `System` layer remains at the root.
+Current menu:
 
-Branch implementation currently adds:
+- `🤖 Bots`
+  - `🎓 School of Nursing FAQ`
+    - `🩺 Health`
+- `⚙️ System`
+  - `📊 Status`
 
-- callback-query support
-- inline keyboard send/edit/callback helpers
-- `/menu`
-- `/bots`
-- root buttons: `🤖 Bots`, `⚙️ System`
-- Bots list generated from configured adapters
-- `🎓 School of Nursing FAQ` submenu
-- FAQ `🩺 Health` action
-- System `📊 Status` action
-- edit-in-place navigation/back buttons
+The Bots list is adapter-driven so future services can be added without crowding the root menu.
 
-Do not show controls that the backend does not support.
+Current follow-up branch:
+
+`feat/menu-close-and-faq-bridge`
+
+It adds:
+
+- `✕ Close` to every menu layer;
+- Telegram `deleteMessage` helper;
+- manual menu-card deletion;
+- action-completion auto-close: leaf actions send their result and delete the menu card;
+- no timer/scheduler/DB is introduced just to expire menus.
 
 ## FAQ control reconnaissance
 
-FAQ repository inspection confirms substantial Telegram-native management logic already exists, including owner/Sudo Admin handling and commands such as `/admin`, `/admins`, `/sudo`, plus monitoring/handoff systems.
+The School of Nursing FAQ repository already has substantial Telegram-native owner/admin logic including `/admin`, `/admins`, `/sudo`, monitoring, handoff and AI-related controls.
 
-However these are internal Telegram/runtime control paths, not a remote HTTP API. IANEO must not use Telegram bot-to-bot command forwarding.
+Those are internal Telegram/runtime paths, not a remote HTTP control API. IANEO must never emulate control by sending Telegram commands to the FAQ bot.
 
-After the Bots menu foundation is live, the next FAQ slice should expose the smallest authenticated remote `/internal/v1/...` bridge needed for useful operational control. Prefer read-only status/monitoring/handoff/stat summaries first. Use a dedicated service token. Sensitive actions require confirmation.
+After the close-UX slice is live, create the smallest authenticated FAQ remote bridge under `/internal/v1/...`, using a dedicated per-service credential. Start read-only with operational summaries such as runtime/admin, monitoring, handoff and basic stats. Sensitive role-changing/destructive actions require a later confirmation-enabled slice.
 
 ## Secrets/config boundary
 
-GitHub Actions secrets:
+GitHub Actions deployment secrets:
 
 - `CLOUDFLARE_API_TOKEN`
 - `CLOUDFLARE_ACCOUNT_ID`
 
-Cloudflare Worker runtime secrets:
+IANEO Cloudflare runtime secrets:
 
 - `TELEGRAM_BOT_TOKEN`
 - `TELEGRAM_WEBHOOK_SECRET`
-- future service-specific tokens
+- future `FAQ_SERVICE_TOKEN`
 
-Cloudflare plain variable:
+IANEO plaintext variable:
 
 - `TELEGRAM_OWNER_ID`
 
@@ -120,14 +96,15 @@ Never commit real secret values.
 
 ## Next actions
 
-1. run targeted CI on `feat/bots-menu-foundation`;
-2. merge only if green;
-3. verify automatic main-branch Deploy Production succeeds without manual deploy;
-4. live-test `/start` -> `🤖 Bots` -> FAQ -> `🩺 Health` and back navigation;
-5. live-test System -> Status and verify FAQ healthy;
-6. reconcile continuity docs from the deployed evidence;
-7. then design the minimum authenticated FAQ control bridge.
+1. targeted CI on `feat/menu-close-and-faq-bridge`;
+2. merge if green;
+3. verify automatic Deploy Production succeeds;
+4. live-test `✕ Close` and action-completion auto-close;
+5. then implement the minimum authenticated FAQ `/internal/v1/...` bridge;
+6. configure the dedicated FAQ service token on both Workers without exposing it in source/chat;
+7. extend `FaqAdapter` and FAQ submenu with the first proven read-only operational controls;
+8. reconcile continuity docs from live evidence.
 
 ## One-line handoff
 
-Current truth: IANEO is live at `ianeo.drthorne.uk`, Telegram `/start` works, FAQ health is connected, and the active slice is a dedicated layered Bots menu that will become the scalable navigation foundation for all future bot/service integrations; richer FAQ control still needs a minimal authenticated remote bridge.
+Current truth: IANEO is live at `ianeo.drthorne.uk`; layered Bots navigation is deployed and user-tested; the current branch adds stateless manual/action-completion menu closing, and the next integration step is a dedicated-token authenticated FAQ remote control bridge starting with read-only operations.

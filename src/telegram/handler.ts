@@ -2,6 +2,7 @@ import type { Env } from "../config/env";
 import type { AdapterRegistry } from "../core/adapter-registry";
 import {
   answerTelegramCallback,
+  deleteTelegramMessage,
   editTelegramMessage,
   sendTelegramMessage,
 } from "./client";
@@ -67,6 +68,32 @@ async function editCallbackMessage(
   );
 }
 
+async function closeCallbackMessage(
+  env: Env,
+  callback: TelegramCallbackQuery,
+): Promise<void> {
+  if (!callback.message) return;
+  await deleteTelegramMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    callback.message.chat.id,
+    callback.message.message_id,
+  );
+}
+
+async function sendResultAndClose(
+  env: Env,
+  callback: TelegramCallbackQuery,
+  text: string,
+): Promise<void> {
+  if (!callback.message) return;
+  await sendTelegramMessage(
+    env.TELEGRAM_BOT_TOKEN,
+    callback.message.chat.id,
+    text,
+  );
+  await closeCallbackMessage(env, callback);
+}
+
 function executionEnvironment(data: unknown): string | null {
   if (!data || typeof data !== "object") return null;
   const environment = (data as Record<string, unknown>).environment;
@@ -85,6 +112,11 @@ async function handleCallback(
 
   const data = callback.data ?? "";
   await answerTelegramCallback(env.TELEGRAM_BOT_TOKEN, callback.id);
+
+  if (data === "menu:close") {
+    await closeCallbackMessage(env, callback);
+    return;
+  }
 
   if (data === "menu:main") {
     await editCallbackMessage(
@@ -117,12 +149,7 @@ async function handleCallback(
   }
 
   if (data === "system:status") {
-    await editCallbackMessage(
-      env,
-      callback,
-      await systemStatusText(registry),
-      systemMenuKeyboard(),
-    );
+    await sendResultAndClose(env, callback, await systemStatusText(registry));
     return;
   }
 
@@ -139,18 +166,17 @@ async function handleCallback(
   if (data === "bot:faq:health") {
     const adapter = registry.get("faq");
     if (!adapter) {
-      await editCallbackMessage(
+      await sendResultAndClose(
         env,
         callback,
         "🔴 School of Nursing FAQ\n\nAdapter is not configured.",
-        faqMenuKeyboard(),
       );
       return;
     }
 
     const result = await adapter.execute("health");
     const environment = executionEnvironment(result.data);
-    await editCallbackMessage(
+    await sendResultAndClose(
       env,
       callback,
       [
@@ -159,7 +185,6 @@ async function handleCallback(
         result.message,
         environment ? `Environment: ${environment}` : null,
       ].filter(Boolean).join("\n"),
-      faqMenuKeyboard(),
     );
   }
 }
