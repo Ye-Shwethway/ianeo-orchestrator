@@ -31,6 +31,7 @@ export function faqMenuKeyboard(): TelegramInlineKeyboard {
   return {
     inline_keyboard: [
       [{ text: "🩺 Health", callback_data: "bot:faq:health" }],
+      [{ text: "📊 Operations", callback_data: "bot:faq:operations" }],
       [{ text: "⬅️ Bots", callback_data: "menu:bots" }],
       closeRow,
     ],
