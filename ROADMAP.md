@@ -16,105 +16,81 @@ Production delivery:
 
 `branch -> PR -> targeted CI green -> merge main -> automatic Deploy Production -> Wrangler -> Cloudflare`
 
-Manual deploy is recovery-only. A merge is not complete until the resulting production deploy is checked.
-
 Stable endpoints:
-
 - IANEO: `https://ianeo.drthorne.uk`
-- School of Nursing FAQ: `https://faq.drthorne.uk`
+- FAQ: `https://faq.drthorne.uk`
 
-Existing workers.dev endpoints remain enabled as fallback/debug surfaces.
+## Telegram UX
 
-## Telegram UX architecture
-
-Canonical hierarchy:
+Hierarchy:
 
 `IANEO Main Menu -> Bots -> Selected Bot -> Bot Actions`
 
-A separate `System` layer remains at the root.
-
-Current hierarchy:
-
+Current:
 - `🤖 Bots`
   - `🎓 School of Nursing FAQ`
     - `🩺 Health`
-  - future Outline Manager
-  - future URL Uploader
-  - future Observer Sandbox
+    - `📊 Operations`
 - `⚙️ System`
   - `📊 Status`
 
-Bot-specific actions are surfaced only when the adapter/backend actually supports them.
+Navigation edits one menu card in place. Every layer has `✕ Close`. Leaf actions send their result and auto-delete the menu card. No timer/scheduler/database exists solely for menu expiry.
 
-Menu-card behavior:
-
-- navigation edits the same card in place;
-- every menu layer has `✕ Close` for manual deletion;
-- leaf actions auto-close the menu card after sending the result;
-- no timer/scheduler/state store is introduced solely for menu expiry.
-
-## v0.1 — Production foundation
+## Production foundation
 
 Completed:
+- [x] Worker + Telegram webhook + owner-only access
+- [x] direct HTTPS adapter model
+- [x] FAQ health path
+- [x] `ianeo.drthorne.uk` + `faq.drthorne.uk`
+- [x] runtime secrets/config
+- [x] Node 22 CI/deploy
+- [x] main merge auto-deploy rule
+- [x] layered Bots menu deployed and user-tested
+- [x] PR #5 menu manual/action-completion close implementation merged
 
-- [x] TypeScript Cloudflare Worker foundation
-- [x] Telegram webhook-secret verification
-- [x] owner-only access
-- [x] adapter registry/contract
-- [x] FAQ direct HTTPS health adapter
-- [x] `FAQ_SERVICE_URL = https://faq.drthorne.uk`
-- [x] Cloudflare runtime values configured
-- [x] `ianeo.drthorne.uk` attached and `/health` live-verified
-- [x] workers.dev `/health` remains live
-- [x] Telegram webhook registered
-- [x] owner `/start` live-verified
-- [x] Node 22 CI/deploy hotfix merged
-- [x] permanent merge-to-main auto-deploy rule
+## FAQ operational bridge — current slice
 
-## v0.2 — Layered Bots menu
+FAQ repository main now contains a minimal protected endpoint:
 
-PR #4 merged and user live-tested successfully.
+`GET https://faq.drthorne.uk/internal/v1/status`
 
-Completed:
+FAQ-side auth secret: `IANEO_SERVICE_TOKEN`.
 
-- [x] callback-query support
-- [x] reusable inline-keyboard helpers
-- [x] `/menu` and `/bots`
-- [x] root `🤖 Bots` and `⚙️ System`
-- [x] adapter-driven Bots list
-- [x] FAQ submenu
-- [x] FAQ health action
-- [x] System status action
-- [x] edit-in-place navigation/back buttons
-- [x] production deployment and user live test
+IANEO-side matching secret: `FAQ_SERVICE_TOKEN`.
 
-Current follow-up branch: `feat/menu-close-and-faq-bridge`
+The endpoint is read-only and aggregate-only. It returns:
+- environment
+- monitoring mode
+- handoff route + Staff Inbox configured boolean
+- users/questions/pending questions
+- active cases/staff
+- Sudo Admin count
+- human-controlled conversation count
 
-- [x] `✕ Close` on all menu layers
-- [x] reusable Telegram message deletion helper
-- [x] action-completion auto-close for FAQ Health and System Status
-- [ ] targeted CI
-- [ ] merge main
-- [ ] automatic production deploy verification
-- [ ] live Telegram close/auto-close verification
+It does not return Telegram IDs, names, chat IDs, question bodies, or other private records.
 
-## FAQ control expansion
+IANEO branch `feat/faq-operations-read` adds:
+- `FAQ_SERVICE_TOKEN` Env binding;
+- Bearer-authenticated FAQ operations fetch;
+- `operations` read capability;
+- `📊 Operations` FAQ submenu action;
+- compact Telegram operational summary;
+- local example binding.
 
-FAQ repository reconnaissance confirms substantial owner/admin/monitoring/handoff logic, including Telegram-native `/admin`, `/admins`, `/sudo`, monitoring, handoff and AI controls. These are internal Telegram/runtime paths, not a remote HTTP control API.
+Pending:
+- [ ] targeted IANEO CI
+- [ ] merge + automatic deployment
+- [ ] configure the same dedicated secret value in FAQ Worker as `IANEO_SERVICE_TOKEN`
+- [ ] configure it in IANEO Worker as `FAQ_SERVICE_TOKEN`
+- [ ] verify wrong/missing bearer is blocked
+- [ ] live-test Telegram FAQ Operations
+- [ ] verify menu close/auto-close production behavior
 
-IANEO must not control the FAQ bot by forwarding Telegram commands.
+## Safety boundary
 
-Next integration slice after menu-close verification:
-
-1. add the smallest authenticated `/internal/v1/...` bridge to the FAQ Worker;
-2. use a dedicated service credential shared only between IANEO and FAQ;
-3. start with useful read-only operational summaries;
-4. classify future actions as read/write/sensitive;
-5. require explicit confirmation for sensitive actions;
-6. expose only proven capabilities in the FAQ submenu.
-
-First bridge candidates: runtime/admin summary, monitoring status, handoff status and basic stats. Role-changing/destructive actions come later.
+FAQ control must never use Telegram bot-to-bot command forwarding. Read operations are allowed through the dedicated authenticated HTTP bridge. Future write/sensitive actions must be added one at a time and require explicit confirmation where appropriate.
 
 ## Deferred integrations
 
-Observer Sandbox currently has local Python/SQLite/CLI control but no remote HTTP surface; it requires a separately authorized minimal bridge. Outline Manager and URL Uploader remain future adapter slices.
+Observer Sandbox needs a separate minimal remote bridge. Outline Manager and URL Uploader remain future adapter slices.

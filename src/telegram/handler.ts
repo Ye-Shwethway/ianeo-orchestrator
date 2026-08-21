@@ -100,6 +100,40 @@ function executionEnvironment(data: unknown): string | null {
   return typeof environment === "string" ? environment : null;
 }
 
+function faqOperationsText(ok: boolean, message: string, data: unknown): string {
+  if (!ok || !data || typeof data !== "object") {
+    return [`🔴 School of Nursing FAQ`, "", message].join("\n");
+  }
+
+  const payload = data as Record<string, unknown>;
+  const monitoring = payload.monitoring as Record<string, unknown> | undefined;
+  const handoff = payload.handoff as Record<string, unknown> | undefined;
+  const stats = payload.stats as Record<string, unknown> | undefined;
+
+  const value = (key: string) => {
+    const raw = stats?.[key];
+    return typeof raw === "number" ? String(raw) : "—";
+  };
+
+  return [
+    "📊 School of Nursing FAQ",
+    "Operational Summary",
+    "",
+    `Environment: ${typeof payload.environment === "string" ? payload.environment : "unknown"}`,
+    `Monitoring: ${typeof monitoring?.mode === "string" ? monitoring.mode : "unknown"}`,
+    `Handoff: ${typeof handoff?.route === "string" ? handoff.route : "unknown"}`,
+    `Staff Inbox: ${handoff?.staffInboxConfigured === true ? "configured" : "not configured"}`,
+    "",
+    `Users: ${value("users")}`,
+    `Questions: ${value("questions")}`,
+    `Pending questions: ${value("pendingQuestions")}`,
+    `Active cases: ${value("activeCases")}`,
+    `Active staff: ${value("activeStaff")}`,
+    `Sudo Admins: ${value("sudoAdmins")}`,
+    `Human-controlled conversations: ${value("humanControlledConversations")}`,
+  ].join("\n");
+}
+
 async function handleCallback(
   env: Env,
   registry: AdapterRegistry,
@@ -157,14 +191,15 @@ async function handleCallback(
     await editCallbackMessage(
       env,
       callback,
-      "🎓 School of Nursing FAQ\n\nConnected through direct HTTPS.\nAvailable control: read-only health.",
+      "🎓 School of Nursing FAQ\n\nConnected through direct HTTPS.\nAvailable controls: health + read-only operations.",
       faqMenuKeyboard(),
     );
     return;
   }
 
+  const adapter = registry.get("faq");
+
   if (data === "bot:faq:health") {
-    const adapter = registry.get("faq");
     if (!adapter) {
       await sendResultAndClose(
         env,
@@ -185,6 +220,25 @@ async function handleCallback(
         result.message,
         environment ? `Environment: ${environment}` : null,
       ].filter(Boolean).join("\n"),
+    );
+    return;
+  }
+
+  if (data === "bot:faq:operations") {
+    if (!adapter) {
+      await sendResultAndClose(
+        env,
+        callback,
+        "🔴 School of Nursing FAQ\n\nAdapter is not configured.",
+      );
+      return;
+    }
+
+    const result = await adapter.execute("operations");
+    await sendResultAndClose(
+      env,
+      callback,
+      faqOperationsText(result.ok, result.message, result.data),
     );
   }
 }
