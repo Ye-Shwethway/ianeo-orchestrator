@@ -13,6 +13,18 @@ IANEO Orchestrator is a lightweight personal Telegram command center. Keep the a
 - Never commit secrets, sensitive IDs, credentials, tokens, passwords, private `.env` values, or sensitive logs. This repository is public.
 - Keep existing-service modifications minimal. Inspect for a usable API first; if none exists, prefer the smallest bridge over a refactor.
 
+## Production deployment invariant
+
+Normal production delivery is always:
+
+`branch -> PR -> targeted CI green -> merge to main -> automatic Deploy Production workflow -> Wrangler -> Cloudflare Worker`
+
+- Any merge to `main` must automatically trigger the production deployment workflow.
+- Do not treat a PR merge as complete until the resulting production deploy has been checked.
+- Manual deployment is an exception/recovery path only, not the normal release workflow.
+- Keep the automatic main-branch deployment path working when modifying CI, Wrangler, package runtime requirements, or repository workflows.
+- A successful CI run is not evidence of a successful production deployment; verify the deployment workflow separately.
+
 ## Engineering style
 
 - Build small, versioned, runnable slices.
